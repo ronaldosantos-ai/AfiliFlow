@@ -1,0 +1,29 @@
+# Ambiente
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+
+# Imagens geradas (temporárias)
+generated_*.jpg
+generated_*.png
+
+# Cache e logs
+published_cache.json
+bot.log
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
