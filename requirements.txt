@@ -1,3 +1,4 @@
+git+https://github.com/tanand/paapi5-python-sdk.git  
 python-amazon-paapi==5.0.1  
 google-generativeai==0.8.3  
 python-telegram-bot==21.5  
