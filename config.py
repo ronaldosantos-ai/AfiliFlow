@@ -4,10 +4,25 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ── Amazon ────────────────────────────────────────────────
-AMAZON_ACCESS_KEY  = os.getenv("AMAZON_ACCESS_KEY")
-AMAZON_SECRET_KEY  = os.getenv("AMAZON_SECRET_KEY")
+def _strip_env(name: str) -> str | None:
+    v = os.getenv(name)
+    return v.strip() if v else None
+
+
+# Creators API (OAuth client credentials no Associates Central — não usar Access Key da PA API)
+AMAZON_CREATORS_CREDENTIAL_ID = _strip_env("AMAZON_CREATORS_CREDENTIAL_ID")
+AMAZON_CREATORS_CREDENTIAL_SECRET = _strip_env("AMAZON_CREATORS_CREDENTIAL_SECRET")
+# v2: 2.1 (Américas), 2.2 (Europa), 2.3 (FE). v3: ex. 3.1 = LWA (padrão para credenciais novas).
+AMAZON_CREATORS_CREDENTIAL_VERSION = (os.getenv("AMAZON_CREATORS_CREDENTIAL_VERSION") or "3.1").strip()
+# Cabeçalho de marketplace (ex.: www.amazon.com.br)
+AMAZON_MARKETPLACE = (os.getenv("AMAZON_MARKETPLACE") or "www.amazon.com.br").strip()
+# Opcional: URL do token OAuth se a Amazon indicar um endpoint customizado
+_raw_auth_ep = os.getenv("AMAZON_CREATORS_AUTH_ENDPOINT")
+AMAZON_CREATORS_AUTH_ENDPOINT = _raw_auth_ep.strip() if _raw_auth_ep else ""
+
 AMAZON_ASSOCIATE_TAG = os.getenv("AMAZON_ASSOCIATE_TAG", "melhoresofertasdaray-20")
-AMAZON_COUNTRY     = os.getenv("AMAZON_COUNTRY", "BR")
+AMAZON_COUNTRY = os.getenv("AMAZON_COUNTRY", "BR")
+AMAZON_ITEM_COUNT = int(os.getenv("AMAZON_ITEM_COUNT", "15"))
 
 # ── Telegram ──────────────────────────────────────────────
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -49,8 +64,8 @@ CATEGORY_LABELS = {
 def validate():
     """Valida se as variáveis obrigatórias estão presentes."""
     required = {
-        "AMAZON_ACCESS_KEY":  AMAZON_ACCESS_KEY,
-        "AMAZON_SECRET_KEY":  AMAZON_SECRET_KEY,
+        "AMAZON_CREATORS_CREDENTIAL_ID": AMAZON_CREATORS_CREDENTIAL_ID,
+        "AMAZON_CREATORS_CREDENTIAL_SECRET": AMAZON_CREATORS_CREDENTIAL_SECRET,
         "TELEGRAM_BOT_TOKEN": TELEGRAM_BOT_TOKEN,
         "TELEGRAM_CHAT_ID":   TELEGRAM_CHAT_ID,
         "GEMINI_API_KEY":     GEMINI_API_KEY,

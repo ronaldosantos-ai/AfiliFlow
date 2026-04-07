@@ -4,7 +4,7 @@ Ponto de entrada do Amazon Affiliate Bot.
 Orquestra o fluxo completo e gerencia o agendamento via APScheduler.
 
 Fluxo por execução:
-  1. Busca produto na Amazon PA API
+  1. Busca produto na Amazon Creators API
   2. Envia URL de afiliado para o bot do Telegram
   3. Gera imagem lifestyle com CTAs (Gemini/Imagen 3)
   4. Publica imagem + legenda no Instagram e Facebook via Buffer

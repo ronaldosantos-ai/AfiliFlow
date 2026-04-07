@@ -1,0 +1,21 @@
+2026-04-05 18:43:42,874 [ERROR] ❌ Variáveis de ambiente faltando: AMAZON_ACCESS_KEY, AMAZON_SECRET_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, GEMINI_API_KEY, BUFFER_ACCESS_TOKEN
+Verifique o arquivo .env
+2026-04-05 18:48:18,248 [ERROR] ❌ Variáveis de ambiente faltando: AMAZON_ACCESS_KEY, AMAZON_SECRET_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, GEMINI_API_KEY, BUFFER_ACCESS_TOKEN
+Verifique o arquivo .env
+2026-04-05 19:04:24,730 [INFO] ▶️  Modo: execução única (teste)
+2026-04-05 19:04:24,734 [INFO] ============================================================
+2026-04-05 19:04:24,735 [INFO] 🚀 Iniciando pipeline...
+2026-04-05 19:04:24,735 [INFO] ============================================================
+2026-04-05 19:04:36,782 [WARNING] ⛔ Pipeline encerrado: nenhum produto disponível.
+2026-04-05 20:33:50,765 [INFO] ▶️  Modo: execução única (teste)
+2026-04-05 20:33:50,766 [INFO] ============================================================
+2026-04-05 20:33:50,766 [INFO] 🚀 Iniciando pipeline...
+2026-04-05 20:33:50,767 [INFO] ============================================================
+2026-04-05 20:34:01,032 [WARNING] ⛔ Pipeline encerrado: nenhum produto disponível.
+2026-04-05 20:49:54,476 [INFO] ▶️  Modo: execução única (teste)
+2026-04-05 20:49:54,521 [INFO] ============================================================
+2026-04-05 20:49:54,525 [INFO] 🚀 Iniciando pipeline...
+2026-04-05 20:49:54,525 [INFO] ============================================================
+2026-04-05 20:50:16,430 [WARNING] ⛔ Pipeline encerrado: nenhum produto disponível.
+2026-04-05 22:10:06,464 [ERROR] ❌ Variáveis de ambiente faltando: AMAZON_CREATORS_CREDENTIAL_ID, AMAZON_CREATORS_CREDENTIAL_SECRET
+Verifique o arquivo .env

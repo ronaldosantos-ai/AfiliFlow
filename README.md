@@ -13,7 +13,7 @@ Bot de automação para afiliados Amazon BR que:
 ```
 amazon-affiliate-bot/
 ├── main.py              # Entry point + scheduler
-├── amazon.py            # Amazon PA API — busca e filtra produtos
+├── amazon.py            # Amazon Creators API — busca e filtra produtos
 ├── telegram_sender.py   # Envia URL para o bot Telegram
 ├── image_generator.py   # Gemini/Imagen 3 — gera imagem lifestyle
 ├── buffer_publisher.py  # Buffer API — publica no Instagram/Facebook
@@ -46,8 +46,11 @@ Edite o `.env` com suas chaves:
 
 | Variável | Onde obter |
 |---|---|
-| `AMAZON_ACCESS_KEY` | [Amazon Associates — Ferramentas → PA API](https://affiliate-program.amazon.com.br/) |
-| `AMAZON_SECRET_KEY` | Mesmo lugar acima |
+| `AMAZON_CREATORS_CREDENTIAL_ID` | [Associates — Creators API](https://affiliate-program.amazon.com.br/) (Credential ID) |
+| `AMAZON_CREATORS_CREDENTIAL_SECRET` | Mesmo lugar (secret exibido ao criar o par) |
+| `AMAZON_CREATORS_CREDENTIAL_VERSION` | `3.1` (LWA, credenciais novas) ou `2.1` / `2.2` / `2.3` (antigas) |
+| `AMAZON_CREATORS_AUTH_ENDPOINT` | Só se precisar: Europa `https://api.amazon.co.uk/auth/o2/token`, FE `https://api.amazon.co.jp/auth/o2/token` |
+| `AMAZON_MARKETPLACE` | `www.amazon.com.br` |
 | `AMAZON_ASSOCIATE_TAG` | `melhoresofertasdaray-20` (já configurado) |
 | `TELEGRAM_BOT_TOKEN` | [@BotFather](https://t.me/BotFather) no Telegram |
 | `TELEGRAM_CHAT_ID` | ID do chat onde você envia os links manualmente |
@@ -155,7 +158,7 @@ tail -f bot.log
 APScheduler (horário configurado)
        │
        ▼
-Amazon PA API → filtra rating ≥ 4.0 + reviews
+Amazon Creators API → filtra rating ≥ 4.0 + reviews
        │
        ├──► Telegram Bot → publica no blog
        │
