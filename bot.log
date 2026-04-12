@@ -61,3 +61,25 @@ Verifique o arquivo .env
 2026-04-09 12:40:19,797 [INFO] 🚀 Iniciando pipeline...
 2026-04-09 12:40:19,798 [INFO] ============================================================
 2026-04-09 12:40:26,377 [WARNING] ⛔ Pipeline encerrado: nenhum produto disponível.
+2026-04-09 12:43:29,182 [INFO] ▶️  Modo: execução única (teste)
+2026-04-09 12:43:29,184 [INFO] ============================================================
+2026-04-09 12:43:29,184 [INFO] 🚀 Iniciando pipeline...
+2026-04-09 12:43:29,185 [INFO] ============================================================
+2026-04-09 12:43:35,855 [WARNING] ⛔ Pipeline encerrado: nenhum produto disponível.
+2026-04-09 12:46:43,461 [INFO] ▶️  Modo: execução única (teste)
+2026-04-09 12:46:43,462 [INFO] ============================================================
+2026-04-09 12:46:43,463 [INFO] 🚀 Iniciando pipeline...
+2026-04-09 12:46:43,463 [INFO] ============================================================
+2026-04-09 12:46:49,241 [WARNING] ⛔ Pipeline encerrado: nenhum produto disponível.
+2026-04-10 09:49:32,552 [INFO] ▶️  Modo: execução única (teste)
+2026-04-10 09:49:32,554 [INFO] ============================================================
+2026-04-10 09:49:32,554 [INFO] 🚀 Iniciando pipeline...
+2026-04-10 09:49:32,554 [INFO] ============================================================
+2026-04-10 09:49:38,349 [WARNING] ⛔ Pipeline encerrado: nenhum produto disponível.
+2026-04-11 01:24:16,877 [INFO] ▶️  Modo: execução única (teste)
+2026-04-11 01:24:16,880 [INFO] ============================================================
+2026-04-11 01:24:16,881 [INFO] 🚀 Iniciando pipeline...
+2026-04-11 01:24:16,882 [INFO] ============================================================
+2026-04-11 01:24:22,726 [WARNING] ⛔ Pipeline encerrado: nenhum produto disponível.
+2026-04-11 01:39:59,013 [ERROR] ❌ Variáveis de ambiente faltando: AMAZON_CREATORS_CREDENTIAL_ID, AMAZON_CREATORS_CREDENTIAL_SECRET
+Verifique o arquivo .env

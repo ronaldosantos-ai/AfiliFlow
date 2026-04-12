@@ -13,9 +13,9 @@ from typing import Optional
 import cache
 import config
 
-# Endpoints
-TOKEN_URL        = "https://api.amazon.com/auth/o2/token"
-CREATORS_API_URL = "https://affiliate-program.amazon.com.br/creatorsapi/v2.2"
+# Endpoints corretos da Creators API
+TOKEN_URL        = "https://creatorsapi.auth.us-west-2.amazoncognito.com/oauth2/token"
+CREATORS_API_URL = "https://affiliate-program.amazon.com.br/creatorsapi/v3.1"
 
 KEYWORDS_MAP = {
     "HomeAndKitchen":        "mais vendidos casa cozinha",
@@ -41,8 +41,9 @@ def _get_oauth_token() -> Optional[str]:
                 "grant_type":    "client_credentials",
                 "client_id":     config.AMAZON_CREATORS_CREDENTIAL_ID,
                 "client_secret": config.AMAZON_CREATORS_CREDENTIAL_SECRET,
-                "scope":         "amazon_associates_api",
+                "scope":         "creatorsapi/default",
             },
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
             timeout=15,
         )
         response.raise_for_status()
