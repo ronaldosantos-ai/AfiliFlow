@@ -9,7 +9,9 @@ import time
 from dataclasses import dataclass
 from typing import Optional
 
-from amazon_creatorsapi import AmazonCreatorsApi, Country
+import creatorsapi_python_sdk
+from creatorsapi_python_sdk import DefaultApi, Configuration, SearchItemsRequestContent
+from creatorsapi_python_sdk.auth import OAuth2Config, OAuth2TokenManager
 
 import cache
 import config
@@ -38,14 +40,25 @@ KEYWORDS_MAP = {
 }
 
 
-def _build_client() -> AmazonCreatorsApi:
-    return AmazonCreatorsApi(
+def _build_api() -> DefaultApi:
+    oauth_config = OAuth2Config(
         credential_id=config.AMAZON_CREATORS_CREDENTIAL_ID,
         credential_secret=config.AMAZON_CREATORS_CREDENTIAL_SECRET,
-        version="3.1",
-        tag=config.AMAZON_ASSOCIATE_TAG,
-        country=Country.BR,
+        version="2.3",
+        auth_endpoint=None,
     )
+    token_manager = OAuth2TokenManager(oauth_config)
+    access_token = token_manager.get_token()
+
+    configuration = Configuration(
+        host="https://affiliate-program.amazon.com.br"
+    )
+    api_client = creatorsapi_python_sdk.ApiClient(
+        configuration=configuration,
+        header_name="Authorization",
+        header_value=f"Bearer {access_token}",
+    )
+    return DefaultApi(api_client)
 
 
 def _parse_item(item, category: str) -> Optional[Product]:
@@ -109,20 +122,33 @@ def search_best_product(category: str) -> Optional[Product]:
     print(f"🔍 Buscando em [{category}] — '{keywords}'")
 
     try:
-        amazon = _build_client()
-        results = amazon.search_items(
+        api = _build_api()
+
+        request = SearchItemsRequestContent(
+            partner_tag=config.AMAZON_ASSOCIATE_TAG,
+            partner_type="Associates",
             keywords=keywords,
             search_index=category,
             item_count=10,
             sort_by="AvgCustomerReviews",
+            resources=[
+                "ItemInfo.Title",
+                "ItemInfo.ByLineInfo",
+                "OffersV2.Listings.Price",
+                "Images.Primary.Large",
+                "CustomerReviews.StarRating",
+                "CustomerReviews.Count",
+            ],
         )
 
-        if not results:
+        response = api.search_items(request)
+
+        if not response or not response.search_result or not response.search_result.items:
             print(f"⚠️  Nenhum resultado para {category}")
             return None
 
         candidates = []
-        for item in results:
+        for item in response.search_result.items:
             product = _parse_item(item, category)
             if not product:
                 continue
