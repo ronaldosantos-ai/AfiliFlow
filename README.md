@@ -51,7 +51,7 @@ Edite o `.env` com suas chaves:
 | `AMAZON_CREATORS_CREDENTIAL_VERSION` | `3.1` (LWA, credenciais novas) ou `2.1` / `2.2` / `2.3` (antigas) |
 | `AMAZON_CREATORS_AUTH_ENDPOINT` | Só se precisar: Europa `https://api.amazon.co.uk/auth/o2/token`, FE `https://api.amazon.co.jp/auth/o2/token` |
 | `AMAZON_MARKETPLACE` | `www.amazon.com.br` |
-| `AMAZON_ASSOCIATE_TAG` | `melhoresofertasdaray-20` (já configurado) |
+| `AMAZON_ASSOCIATE_TAG` | `petbuzz-20` (já configurado) |
 | `TELEGRAM_BOT_TOKEN` | [@BotFather](https://t.me/BotFather) no Telegram |
 | `TELEGRAM_CHAT_ID` | ID do chat onde você envia os links manualmente |
 | `GEMINI_API_KEY` | [Google AI Studio](https://aistudio.google.com/) |
