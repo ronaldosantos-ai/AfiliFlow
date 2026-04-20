@@ -46,7 +46,6 @@ def apply() -> None:
                     "grant_type": self.config.get_grant_type(),
                     "client_id": self.config.get_credential_id(),
                     "client_secret": self.config.get_credential_secret(),
-                    "scope": self.config.get_scope(),
                 }
                 response = requests.post(
                     url,
