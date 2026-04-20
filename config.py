@@ -3,6 +3,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# ── Shopee ────────────────────────────────────────────────
+SHOPEE_APP_ID = os.getenv("SHOPEE_APP_ID", "18191390000")
+SHOPEE_TOKEN = os.getenv("SHOPEE_TOKEN", "XCZN2VKYQ3F4RP47BBP3RZX5EJYM3UK2")
+
 # ── Amazon ────────────────────────────────────────────────
 def _strip_env(name: str) -> str | None:
     v = os.getenv(name)
@@ -64,8 +68,8 @@ CATEGORY_LABELS = {
 def validate():
     """Valida se as variáveis obrigatórias estão presentes."""
     required = {
-        "AMAZON_CREATORS_CREDENTIAL_ID": AMAZON_CREATORS_CREDENTIAL_ID,
-        "AMAZON_CREATORS_CREDENTIAL_SECRET": AMAZON_CREATORS_CREDENTIAL_SECRET,
+        "SHOPEE_APP_ID": SHOPEE_APP_ID,
+        "SHOPEE_TOKEN": SHOPEE_TOKEN,
         "TELEGRAM_BOT_TOKEN": TELEGRAM_BOT_TOKEN,
         "TELEGRAM_CHAT_ID":   TELEGRAM_CHAT_ID,
         "GEMINI_API_KEY":     GEMINI_API_KEY,

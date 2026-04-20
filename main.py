@@ -1,10 +1,10 @@
 """
 main.py
-Ponto de entrada do Amazon Affiliate Bot.
+Ponto de entrada do Shopee Affiliate Bot.
 Orquestra o fluxo completo e gerencia o agendamento via APScheduler.
 
 Fluxo por execução:
-  1. Busca produto na Amazon Creators API
+  1. Busca produto na Shopee Affiliate API
   2. Envia URL de afiliado para o bot do Telegram
   3. Gera imagem lifestyle com CTAs (Gemini/Imagen 3)
   4. Publica imagem + legenda no Instagram e Facebook via Buffer
@@ -20,7 +20,7 @@ from apscheduler.triggers.cron import CronTrigger
 
 import config
 import cache
-import amazon
+import shopee
 import telegram_sender
 import image_generator
 import buffer_publisher
@@ -51,13 +51,13 @@ def run_pipeline():
     cache.clean_expired()
 
     # 2. Busca produto
-    product = amazon.get_product_for_run()
+    product = shopee.get_product_for_run()
     if not product:
         logger.warning("⛔ Pipeline encerrado: nenhum produto disponível.")
         return
 
     logger.info(f"📦 Produto: {product.title}")
-    logger.info(f"   ASIN: {product.asin} | R${product.price:.2f} | ⭐{product.rating} ({product.reviews} reviews)")
+    logger.info(f"   ID: {product.asin} | R${product.price:.2f} | ⭐{product.rating} ({product.reviews} reviews)")
     logger.info(f"   Categoria: {product.category_label}")
     logger.info(f"   Link: {product.affiliate_url}")
 
@@ -85,7 +85,7 @@ def run_pipeline():
         rating=product.rating,
         reviews=product.reviews,
         product_image_url=product.image_url,
-        asin=product.asin,
+        asin=product.asin, # Usando asin como identificador genérico
     )
 
     if not image_path:
@@ -121,7 +121,7 @@ def run_pipeline():
     # 8. Marca no cache apenas se pelo menos uma publicação funcionou
     if success_count > 0:
         cache.mark_published(product.asin)
-        logger.info(f"📝 Cache atualizado para ASIN {product.asin}")
+        logger.info(f"📝 Cache atualizado para ID {product.asin}")
 
     stats = cache.get_stats()
     logger.info(f"📊 Total de produtos publicados no cache: {stats['total_published']}")
