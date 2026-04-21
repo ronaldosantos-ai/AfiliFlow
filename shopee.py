@@ -3,19 +3,22 @@ import logging
 import random
 import math
 import time
+import hashlib
+import json
+import datetime
+import calendar
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, List
 
 import config
 import cache
 
-# Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 @dataclass
 class Product:
-    asin: str  # Usando 'asin' para manter compatibilidade com o resto do código (será o shopee_id)
+    asin: str
     title: str
     brand: str
     price: float
@@ -28,55 +31,135 @@ class Product:
     category_label: str
 
 KEYWORDS_MAP = {
-    "HomeAndKitchen":        "mais vendidos casa cozinha",
-    "BeautyAndPersonalCare": "mais vendidos beleza cuidados",
-    "SportsAndOutdoors":     "mais vendidos esportes fitness",
-    "Electronics":           "mais vendidos eletronicos",
+    "HomeAndKitchen":        "casa cozinha utilidades",
+    "BeautyAndPersonalCare": "maquiagem cuidados pele",
+    "SportsAndOutdoors":     "esportes fitness academia",
+    "Electronics":           "eletronicos celular acessorios",
 }
 
 class ShopeeAffiliateAPI:
-    def __init__(self, app_id, token):
+    def __init__(self, app_id, app_secret):
         self.app_id = app_id
-        self.token = token
-        self.base_url = "https://shopee-api.com"  # Substituir pela URL real da API da Shopee se necessário
+        self.app_secret = app_secret
+        self.base_url = "https://open-api.affiliate.shopee.com.br/graphql"
 
-    def search_products(self, query, category: str):
-        try:
-            # Nota: Esta é uma implementação baseada no exemplo fornecido.
-            # Em um cenário real, os endpoints e parâmetros seriam ajustados conforme a documentação da Shopee.
-            url = f'{self.base_url}/search'
-            params = {
-                'app_id': self.app_id,
-                'token': self.token,
-                'query': query,
+    def _generate_signature(self, payload: str, timestamp: int) -> str:
+        signature_base = f"{self.app_id}{timestamp}{payload}{self.app_secret}"
+        return hashlib.sha256(signature_base.encode('utf-8')).hexdigest()
+
+    def search_products(self, keyword: str, limit: int = 10) -> List[Product]:
+        timestamp = calendar.timegm(datetime.datetime.utcnow().utctimetuple())
+
+        # Query corrigida para productOfferV2
+        query = """
+        query getProductList($keyword: String, $limit: Int, $page: Int) {
+            productOfferV2(keyword: $keyword, limit: $limit, page: $page) {
+                nodes {
+                    itemId
+                    productName
+                    priceMin
+                    priceMax
+                    imageUrl
+                    commissionRate
+                    commission
+                    shopName
+                    offerLink
+                    ratingStar
+                    soldCount
+                }
+                pageInfo {
+                    page
+                    limit
+                    hasNextPage
+                }
             }
-            # response = requests.get(url, params=params)
-            # response.raise_for_status()
-            # products_data = response.json()
-            
-            # Mock para demonstração se a API não estiver acessível ou for apenas exemplo
-            # No código real, descomente as linhas acima e processe o JSON.
-            
-            logger.info(f"🔍 Buscando na Shopee: {query}")
-            return [] # Retornando vazio por enquanto para evitar erros de execução sem API real
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Error fetching products from Shopee: {e}")
+        }
+        """
+        variables = {
+            "keyword": keyword,
+            "limit": limit,
+            "page": 1
+        }
+        payload = json.dumps({"query": query, "variables": variables})
+        signature = self._generate_signature(payload, timestamp)
+
+        headers = {
+            "Authorization": f"SHA256 Credential={self.app_id}, Signature={signature}, Timestamp={timestamp}",
+            "Content-Type": "application/json"
+        }
+
+        try:
+            response = requests.post(self.base_url, headers=headers, data=payload)
+            response.raise_for_status()
+            data = response.json()
+
+            if 'errors' in data:
+                logger.error(f"Erro na API da Shopee: {data['errors']}")
+                return []
+
+            nodes = data.get('data', {}).get('productOfferV2', {}).get('nodes', [])
+            products = []
+
+            for node in nodes:
+                # Usa priceMin como preço base
+                price = float(node.get('priceMin') or node.get('priceMax') or 0)
+                rating = float(node.get('ratingStar') or 4.5)
+                reviews = int(node.get('soldCount') or 0)
+
+                p = Product(
+                    asin=str(node['itemId']),
+                    title=node['productName'],
+                    brand=node.get('shopName', 'Shopee'),
+                    price=price,
+                    currency="BRL",
+                    rating=rating,
+                    reviews=reviews,
+                    image_url=node['imageUrl'],
+                    affiliate_url=node['offerLink'],
+                    category="",
+                    category_label=""
+                )
+                products.append(p)
+
+            return products
+
+        except Exception as e:
+            logger.error(f"Erro ao buscar produtos na Shopee: {e}")
             return []
 
+
 def search_best_product(category: str) -> Optional[Product]:
-    keywords = KEYWORDS_MAP.get(category, "mais vendidos")
-    api = ShopeeAffiliateAPI(app_id=config.SHOPEE_APP_ID, token=config.SHOPEE_TOKEN)
-    
-    # Esta parte precisaria ser adaptada para converter o retorno da Shopee no nosso objeto Product
-    # Por enquanto, seguindo a lógica do usuário de buscar e filtrar.
-    
+    keywords = KEYWORDS_MAP.get(category, "ofertas")
+    api = ShopeeAffiliateAPI(app_id=config.SHOPEE_APP_ID, app_secret=config.SHOPEE_TOKEN)
+
     logger.info(f"🔎 Buscando em [{category}] na Shopee — '{keywords}'")
-    
-    # Simulação de busca (conforme estrutura do usuário)
-    # products = api.search_products(keywords, category)
-    # ... lógica de filtro e seleção ...
-    
-    return None # Retornando None pois é uma casca para a integração real
+
+    products = api.search_products(keywords)
+
+    candidates = []
+    for p in products:
+        if p.price <= 0 or p.price > config.MAX_PRICE:
+            continue
+        if cache.is_published(p.asin):
+            logger.info(f"⏭️  Pulando {p.asin} — já publicado")
+            continue
+        p.category = category
+        p.category_label = config.CATEGORY_LABELS.get(category, category)
+        candidates.append(p)
+
+    if not candidates:
+        return None
+
+    # Ordena por rating × log(vendas)
+    candidates.sort(
+        key=lambda x: x.rating * math.log(max(x.reviews, 1)),
+        reverse=True
+    )
+
+    best = candidates[0]
+    logger.info(f"✅ [{best.asin}] {best.title[:60]}... R${best.price:.2f}")
+    return best
+
 
 def get_product_for_run() -> Optional[Product]:
     categories = config.ACTIVE_CATEGORIES.copy()
@@ -88,5 +171,5 @@ def get_product_for_run() -> Optional[Product]:
             return product
         time.sleep(1)
 
-    logger.info('No products found on Shopee.')
+    logger.info('Nenhum produto encontrado na Shopee após percorrer categorias.')
     return None
