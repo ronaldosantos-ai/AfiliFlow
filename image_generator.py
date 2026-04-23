@@ -1,28 +1,25 @@
 """
 image_generator.py
 Gera imagem lifestyle do produto com CTAs e gatilhos de conversão
-usando a API do Gemini (Nano Banana) com Imagen 3.
+usando a API do Gemini (google-genai) com Imagen 3.
 """
 
-import base64
 import os
-import re
-import time
 import requests
 from io import BytesIO
 from PIL import Image
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 import config
 
-# Configura a API do Gemini
-genai.configure(api_key=config.GEMINI_API_KEY)
+# Configura o cliente Gemini
+client = genai.Client(api_key=config.GEMINI_API_KEY)
 
-# Gatilhos por categoria
 CATEGORY_TRIGGERS = {
     "HomeAndKitchen": [
         "Transforme sua casa agora",
-        "Frete grátis com Prime",
+        "Frete grátis",
         "Mais de {reviews} compradores satisfeitos",
         "Qualidade garantida ⭐{rating}",
     ],
@@ -30,7 +27,7 @@ CATEGORY_TRIGGERS = {
         "Resultado comprovado",
         "Mais de {reviews} avaliações positivas",
         "Cuidado que você merece ✨",
-        "⭐{rating} — Top vendas Amazon",
+        "⭐{rating} — Top vendas",
     ],
     "SportsAndOutdoors": [
         "Supere seus limites 💪",
@@ -40,7 +37,7 @@ CATEGORY_TRIGGERS = {
     ],
     "Electronics": [
         "Tecnologia de ponta 🔥",
-        "Frete grátis com Prime",
+        "Frete grátis",
         "{reviews}+ clientes satisfeitos",
         "⭐{rating} — Escolha dos especialistas",
     ],
@@ -48,9 +45,9 @@ CATEGORY_TRIGGERS = {
 
 DEFAULT_TRIGGERS = [
     "Oferta imperdível 🔥",
-    "Frete grátis com Prime",
+    "Frete grátis",
     "Mais de {reviews} avaliações",
-    "⭐{rating} estrelas na Amazon",
+    "⭐{rating} estrelas",
 ]
 
 
@@ -65,7 +62,7 @@ def _get_triggers(category: str, rating: float, reviews: int) -> list[str]:
 
 
 def _build_image_prompt(product_title: str, category_label: str,
-                         price: float, triggers: list[str]) -> str:
+                        price: float, triggers: list[str]) -> str:
     triggers_text = " | ".join(triggers)
     return (
         f"Create a professional lifestyle product advertisement image for Instagram. "
@@ -78,12 +75,11 @@ def _build_image_prompt(product_title: str, category_label: str,
         f"Also display the price 'R$ {price:.2f}' prominently. "
         f"Use bold, readable typography. Color palette: warm and inviting. "
         f"Square format (1:1), high quality, photorealistic. "
-        f"Do NOT add Amazon logo or watermarks."
+        f"Do NOT add any store logo or watermarks."
     )
 
 
 def _download_product_image(image_url: str) -> bytes | None:
-    """Baixa a imagem original do produto para usar como referência."""
     try:
         response = requests.get(image_url, timeout=15)
         response.raise_for_status()
@@ -103,84 +99,79 @@ def generate_product_image(
     product_image_url: str,
     asin: str,
 ) -> str | None:
-    """
-    Gera imagem lifestyle com CTAs usando Gemini Imagen 3.
-    Retorna o caminho local do arquivo de imagem gerado.
-    """
     triggers = _get_triggers(category, rating, reviews)
     prompt = _build_image_prompt(product_title, category_label, price, triggers)
 
     print(f"🎨 Gerando imagem para: {product_title[:50]}...")
     print(f"   Gatilhos: {triggers}")
 
-    try:
-        # Usa Imagen 3 via Gemini API
-        imagen = genai.ImageGenerationModel("imagen-3.0-generate-001")
+    result = _generate_with_imagen3(prompt, asin)
+    if result:
+        return result
 
-        result = imagen.generate_images(
+    print("⚡ Tentando fallback com Gemini Flash Image...")
+    return _generate_with_gemini_flash(prompt, asin, product_image_url)
+
+
+def _generate_with_imagen3(prompt: str, asin: str) -> str | None:
+    try:
+        response = client.models.generate_images(
+            model="imagen-3.0-generate-001",
             prompt=prompt,
-            number_of_images=1,
-            aspect_ratio="1:1",
-            safety_filter_level="block_only_high",
-            person_generation="dont_allow",
+            config=types.GenerateImagesConfig(
+                number_of_images=1,
+                aspect_ratio="1:1",
+                safety_filter_level="BLOCK_ONLY_HIGH",
+                person_generation="DONT_ALLOW",
+            ),
         )
 
-        if not result.images:
-            print("❌ Imagen: Nenhuma imagem retornada.")
-            return None
+        if response.generated_images:
+            image_bytes = response.generated_images[0].image.image_bytes
+            output_path = f"generated_{asin}.jpg"
+            img = Image.open(BytesIO(image_bytes))
+            img = img.convert("RGB")
+            img.save(output_path, "JPEG", quality=92)
+            print(f"✅ Imagem gerada (Imagen 3): {output_path}")
+            return output_path
 
-        # Salva a imagem localmente
-        image_data = result.images[0]._image_bytes
-        output_path = f"generated_{asin}.jpg"
-
-        img = Image.open(BytesIO(image_data))
-        img = img.convert("RGB")
-        img.save(output_path, "JPEG", quality=92)
-
-        print(f"✅ Imagem gerada: {output_path} ({img.size[0]}x{img.size[1]}px)")
-        return output_path
+        print("❌ Imagen 3: Nenhuma imagem retornada.")
+        return None
 
     except Exception as e:
         print(f"❌ Erro ao gerar imagem com Imagen 3: {e}")
-        print("⚡ Tentando fallback com Gemini Flash Image...")
-        return _generate_with_gemini_flash(
-            prompt, asin, product_image_url
-        )
+        return None
 
 
 def _generate_with_gemini_flash(prompt: str, asin: str,
-                                  product_image_url: str) -> str | None:
-    """
-    Fallback: usa gemini-2.0-flash-exp para geração de imagem
-    quando Imagen 3 falha.
-    """
+                                product_image_url: str) -> str | None:
     try:
-        model = genai.GenerativeModel("gemini-2.0-flash-exp")
-
-        # Se tiver imagem do produto, usa como referência
         product_img_bytes = _download_product_image(product_image_url)
 
+        contents = []
         if product_img_bytes:
-            img_part = {
-                "inline_data": {
-                    "mime_type": "image/jpeg",
-                    "data": base64.b64encode(product_img_bytes).decode("utf-8"),
-                }
-            }
-            response = model.generate_content(
-                [img_part, f"Based on this product image, {prompt}"],
-                generation_config={"response_mime_type": "image/jpeg"},
+            contents.append(
+                types.Part.from_bytes(
+                    data=product_img_bytes,
+                    mime_type="image/jpeg",
+                )
             )
+            contents.append(f"Based on this product image, {prompt}")
         else:
-            response = model.generate_content(
-                prompt,
-                generation_config={"response_mime_type": "image/jpeg"},
-            )
+            contents.append(prompt)
+
+        response = client.models.generate_content(
+            model="gemini-2.0-flash-exp",
+            contents=contents,
+            config=types.GenerateContentConfig(
+                response_modalities=["IMAGE", "TEXT"],
+            ),
+        )
 
         output_path = f"generated_{asin}.jpg"
         for part in response.candidates[0].content.parts:
             if part.inline_data and part.inline_data.mime_type.startswith("image"):
-                img_bytes = base64.b64decode(part.inline_data.data)
+                img_bytes = part.inline_data.data
                 with open(output_path, "wb") as f:
                     f.write(img_bytes)
                 print(f"✅ Imagem (fallback) gerada: {output_path}")
@@ -195,28 +186,24 @@ def _generate_with_gemini_flash(prompt: str, asin: str,
 
 
 def build_caption(product_title: str, category_label: str,
-                   price: float, rating: float,
-                   reviews: int, affiliate_url: str) -> str:
-    """Gera a legenda do post para Instagram/Facebook."""
-    stars = "⭐" * round(rating)
+                  price: float, rating: float,
+                  reviews: int, affiliate_url: str) -> str:
+    stars = "⭐" * min(round(rating), 5)
     price_str = f"R$ {price:.2f}"
-
     caption = (
         f"🔥 {product_title}\n\n"
         f"💰 {price_str}\n"
         f"{stars} {rating}/5 — {reviews:,} avaliações\n\n"
-        f"✅ Frete grátis com Amazon Prime\n"
-        f"✅ Garantia Amazon\n"
+        f"✅ Frete grátis\n"
         f"✅ Entrega rápida\n\n"
         f"👉 Compre agora: {affiliate_url}\n\n"
-        f"#Amazon #AmazonBrasil #{category_label.replace(' ', '')} "
-        f"#MelhoresOfertas #Oferta #Compras #AmazonAfiliados"
+        f"#{category_label.replace(' ', '')} "
+        f"#MelhoresOfertas #Oferta #Compras #Shopee"
     )
     return caption.replace(",", ".")
 
 
 def cleanup_image(image_path: str):
-    """Remove o arquivo de imagem após o upload."""
     try:
         if image_path and os.path.exists(image_path):
             os.remove(image_path)
