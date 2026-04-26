@@ -116,12 +116,12 @@ def generate_product_image(
 def _generate_with_imagen3(prompt: str, asin: str) -> str | None:
     try:
         response = client.models.generate_images(
-            model="imagen-3.0-generate-001",
+            model="imagen-4.0-generate-001",
             prompt=prompt,
             config=types.GenerateImagesConfig(
                 number_of_images=1,
                 aspect_ratio="1:1",
-                safety_filter_level="BLOCK_ONLY_HIGH",
+                safety_filter_level="BLOCK_LOW_AND_ABOVE",
                 person_generation="DONT_ALLOW",
             ),
         )
@@ -161,7 +161,7 @@ def _generate_with_gemini_flash(prompt: str, asin: str,
             contents.append(prompt)
 
         response = client.models.generate_content(
-            model="gemini-2.0-flash-exp",
+            model="gemini-3.1-flash-image-preview",
             contents=contents,
             config=types.GenerateContentConfig(
                 response_modalities=["IMAGE", "TEXT"],
