@@ -52,9 +52,11 @@ async function startServer() {
   }
 
   const port = parseInt(process.env.PORT || "3000");
+  const host = "0.0.0.0";
 
-  server.listen(port, "0.0.0.0", () => {
-    console.log(`Server running on port ${port}`);
+  server.listen(port, host, () => {
+    console.log(`🚀 Server is live and listening on ${host}:${port}`);
+    console.log(`📢 Health check: http://${host}:${port}/api/trpc/health (if implemented)`);
   });
 }
 
