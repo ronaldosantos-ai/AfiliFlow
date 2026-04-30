@@ -210,3 +210,30 @@ def cleanup_image(image_path: str):
             print(f"🗑️  Imagem temporária removida: {image_path}")
     except Exception as e:
         print(f"⚠️  Não foi possível remover {image_path}: {e}")
+
+
+def get_public_image_url(image_path: str) -> str | None:
+    """
+    Faz upload da imagem gerada para um serviço de armazenamento público e retorna a URL.
+    """
+    try:
+        # Usar manus-upload-file para fazer o upload e obter a URL pública
+        # O resultado do manus-upload-file é uma string JSON com as URLs
+        import subprocess
+        command = ["manus-upload-file", image_path]
+        process = subprocess.run(command, capture_output=True, text=True, check=True)
+        output = process.stdout.strip()
+        
+        # O output é uma string JSON, precisamos parseá-la
+        import json
+        urls = json.loads(output)
+        
+        if urls and isinstance(urls, list) and len(urls) > 0:
+            logger.info(f"✅ Imagem {image_path} uploaded. URL pública: {urls[0]}")
+            return urls[0]
+        else:
+            logger.error(f"❌ manus-upload-file não retornou URL pública para {image_path}: {output}")
+            return None
+    except Exception as e:
+        logger.error(f"❌ Erro ao fazer upload da imagem {image_path}: {e}")
+        return None
