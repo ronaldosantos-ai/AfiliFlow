@@ -6,15 +6,12 @@ import {
   getRecentPosts,
   getMetricsSummary,
   getPipelineConfig,
-  updatePipelineConfig,
   getExecutionLogs,
-  createExecutionLog,
   getIntegrationStatus,
-  updateIntegrationStatus,
   getCacheItems,
-  removeCacheItem,
   getMetricsSnapshot,
 } from "./db";
+import { registerUser, loginUser, getPendingUsers, authorizeUser, rejectUser } from "./auth";
 import { z } from "zod";
 
 export const appRouter = router({
@@ -28,11 +25,45 @@ export const appRouter = router({
         success: true,
       } as const;
     }),
+    register: publicProcedure
+      .input(z.object({ email: z.string().email(), password: z.string().min(6), name: z.string() }))
+      .mutation(async ({ input }) => {
+        const user = await registerUser(input.email, input.password, input.name);
+        return { success: true, user };
+      }),
+    login: publicProcedure
+      .input(z.object({ email: z.string().email(), password: z.string() }))
+      .mutation(async ({ input, ctx }) => {
+        const user = await loginUser(input.email, input.password);
+        ctx.res.cookie(COOKIE_NAME, JSON.stringify(user), {
+          httpOnly: true,
+          secure: true,
+          sameSite: "none",
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+        return { success: true, user };
+      }),
   }),
 
-  // Dashboard routes
+  admin: router({
+    getPendingUsers: protectedProcedure.query(async () => {
+      return await getPendingUsers();
+    }),
+    authorizeUser: protectedProcedure
+      .input(z.object({ userId: z.number() }))
+      .mutation(async ({ input }) => {
+        await authorizeUser(input.userId);
+        return { success: true };
+      }),
+    rejectUser: protectedProcedure
+      .input(z.object({ userId: z.number() }))
+      .mutation(async ({ input }) => {
+        await rejectUser(input.userId);
+        return { success: true };
+      }),
+  }),
+
   dashboard: router({
-    // Metrics
     getMetricsSummary: publicProcedure.query(async () => {
       return await getMetricsSummary();
     }),
@@ -43,86 +74,25 @@ export const appRouter = router({
         return await getRecentPosts(input.limit);
       }),
 
-    // Pipeline Configuration
     getPipelineConfig: publicProcedure.query(async () => {
       return await getPipelineConfig();
     }),
 
-    updatePipelineConfig: protectedProcedure
-      .input(
-        z.object({
-          scheduleTimes: z.array(z.string()).optional(),
-          keywords: z.record(z.string(), z.string()).optional(),
-          maxPrice: z.number().optional(),
-          minRating: z.number().optional(),
-          activeCategories: z.array(z.string()).optional(),
-        })
-      )
-      .mutation(async ({ input }) => {
-        return await updatePipelineConfig(input as any);
-      }),
+    getExecutionLogs: publicProcedure.query(async () => {
+      return await getExecutionLogs();
+    }),
 
-    // Execution Logs
-    getExecutionLogs: publicProcedure
-      .input(z.object({ limit: z.number().default(50) }))
-      .query(async ({ input }) => {
-        return await getExecutionLogs(input.limit);
-      }),
+    getIntegrationStatus: publicProcedure.query(async () => {
+      return await getIntegrationStatus();
+    }),
 
-    createExecutionLog: protectedProcedure
-      .input(
-        z.object({
-          executionId: z.string(),
-          status: z.enum(["success", "error", "partial"]),
-          productFound: z.string().optional(),
-          productName: z.string().optional(),
-          channelsPublished: z.array(z.string()).default([]),
-          errorMessage: z.string().optional(),
-          executionTime: z.number().optional(),
-        })
-      )
-      .mutation(async ({ input }) => {
-        return await createExecutionLog(input);
-      }),
-
-    // Integration Status
-    getIntegrationStatus: publicProcedure
-      .input(z.object({ integrationName: z.string().optional() }))
-      .query(async ({ input }) => {
-        return await getIntegrationStatus(input.integrationName);
-      }),
-
-    updateIntegrationStatus: protectedProcedure
-      .input(
-        z.object({
-          integrationName: z.enum(["shopee", "telegram", "buffer_instagram", "gemini"]),
-          status: z.enum(["healthy", "warning", "error"]),
-          responseTime: z.number().optional(),
-          errorMessage: z.string().optional(),
-        })
-      )
-      .mutation(async ({ input }) => {
-        const { integrationName, ...statusData } = input;
-        return await updateIntegrationStatus(integrationName, statusData as any);
-      }),
-
-    // Cache Management
     getCacheItems: publicProcedure.query(async () => {
       return await getCacheItems();
     }),
 
-    removeCacheItem: protectedProcedure
-      .input(z.object({ productId: z.string() }))
-      .mutation(async ({ input }) => {
-        return await removeCacheItem(input.productId);
-      }),
-
-    // Metrics Snapshots
-    getMetricsSnapshots: publicProcedure
-      .input(z.object({ limit: z.number().default(30) }))
-      .query(async ({ input }) => {
-        return await getMetricsSnapshot(input.limit);
-      }),
+    getMetricsSnapshot: publicProcedure.query(async () => {
+      return await getMetricsSnapshot();
+    }),
   }),
 });
 

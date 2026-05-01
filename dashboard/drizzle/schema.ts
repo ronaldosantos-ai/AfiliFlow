@@ -11,7 +11,25 @@ import {
 } from "drizzle-orm/mysql-core";
 
 /**
- * Core user table backing auth flow.
+ * Custom Auth Users table - Email/Password based authentication
+ */
+export const authUsers = mysqlTable("authUsers", {
+  id: int("id").autoincrement().primaryKey(),
+  email: varchar("email", { length: 320 }).notNull().unique(),
+  passwordHash: varchar("passwordHash", { length: 255 }).notNull(),
+  name: text("name"),
+  isAuthorized: boolean("isAuthorized").default(false).notNull(),
+  isAdmin: boolean("isAdmin").default(false).notNull(),
+  lastLoginAt: timestamp("lastLoginAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AuthUser = typeof authUsers.$inferSelect;
+export type InsertAuthUser = typeof authUsers.$inferInsert;
+
+/**
+ * Core user table backing auth flow (mantido para compatibilidade).
  */
 export const users = mysqlTable("users", {
   id: int("id").autoincrement().primaryKey(),

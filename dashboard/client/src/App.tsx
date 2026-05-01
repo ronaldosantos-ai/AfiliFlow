@@ -5,6 +5,8 @@ import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
+import Login from "./pages/Login";
+import AdminUsers from "./pages/AdminUsers";
 import Metrics from "./pages/Metrics";
 import Posts from "./pages/Posts";
 import Config from "./pages/Config";
@@ -13,15 +15,16 @@ import Cache from "./pages/Cache";
 import Integrations from "./pages/Integrations";
 
 function Router() {
-  // make sure to consider if you need authentication for certain routes
   return (
     <Switch>
+      <Route path="/login" component={Login} />
       <Route path="/" component={Metrics} />
       <Route path="/posts" component={Posts} />
       <Route path="/config" component={Config} />
       <Route path="/logs" component={Logs} />
       <Route path="/cache" component={Cache} />
       <Route path="/integrations" component={Integrations} />
+      <Route path="/admin/users" component={AdminUsers} />
       <Route path="/404" component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />
