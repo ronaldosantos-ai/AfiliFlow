@@ -14,6 +14,8 @@ import {
 import { registerUser, loginUser, getPendingUsers, authorizeUser, rejectUser } from "./auth";
 import { z } from "zod";
 
+const COOKIE_NAME = "app_session_id";
+
 export const appRouter = router({
   system: systemRouter,
   auth: router({
