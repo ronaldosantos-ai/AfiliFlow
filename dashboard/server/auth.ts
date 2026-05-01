@@ -45,6 +45,8 @@ export async function registerUser(email: string, password: string, name: string
     name,
     isAdmin,
     isAuthorized: isAdmin, // Auto-authorize admin
+    createdAt: new Date(),
+    updatedAt: new Date(),
   });
 
   return {
