@@ -13,7 +13,7 @@ import {
 /**
  * Custom Auth Users table - Email/Password based authentication
  */
-export const authUsers = mysqlTable("authUsers", {
+export const authUsers = mysqlTable("authUsers_v2", {
   id: int("id").autoincrement().primaryKey(),
   email: varchar("email", { length: 320 }).notNull().unique(),
   passwordHash: varchar("passwordHash", { length: 255 }).notNull(),
