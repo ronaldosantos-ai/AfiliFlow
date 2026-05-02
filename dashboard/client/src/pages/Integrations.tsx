@@ -1,277 +1,251 @@
-import DashboardLayout from "@/components/DashboardLayout";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, AlertCircle, XCircle, RefreshCw, Activity } from "lucide-react";
-import { useState } from "react";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Eye, EyeOff, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
+import { trpc } from "@/lib/trpc";
+import DashboardLayout from "@/components/DashboardLayout";
 
-interface Integration {
-  id: string;
-  name: string;
-  status: "healthy" | "warning" | "error";
-  lastCheck: string;
-  responseTime: number;
-  errorMessage?: string;
-  description: string;
-}
-
-const mockIntegrations: Integration[] = [
+const INTEGRATIONS = [
   {
-    id: "shopee",
-    name: "Shopee API",
-    status: "healthy",
-    lastCheck: "2026-04-21T14:35:00Z",
-    responseTime: 245,
-    description: "Busca de produtos afiliados",
+    id: "meta",
+    name: "Meta API (Instagram & Facebook)",
+    description: "Configure acesso à Meta para publicar em Instagram e Facebook",
+    color: "bg-blue-600",
+    fields: [
+      { key: "metaAppId", label: "App ID", isSecret: true },
+      { key: "metaAppSecret", label: "App Secret", isSecret: true },
+      { key: "metaPageAccessToken", label: "Page Access Token", isSecret: true },
+      { key: "metaPageId", label: "Page ID", isSecret: false },
+      { key: "metaInstagramAccountId", label: "Instagram Account ID", isSecret: false },
+    ],
   },
   {
     id: "telegram",
-    name: "Telegram Bot",
-    status: "healthy",
-    lastCheck: "2026-04-21T14:30:00Z",
-    responseTime: 1200,
-    description: "Publicação em canais Telegram",
+    name: "Telegram",
+    description: "Configure bot do Telegram para publicar ofertas",
+    color: "bg-blue-400",
+    fields: [
+      { key: "telegramBotToken", label: "Bot Token", isSecret: true },
+      { key: "telegramChatId", label: "Chat ID", isSecret: false },
+    ],
   },
   {
-    id: "buffer_instagram",
-    name: "Buffer/Instagram",
-    status: "warning",
-    lastCheck: "2026-04-21T14:25:00Z",
-    responseTime: 3500,
-    errorMessage: "Tempo de resposta elevado",
-    description: "Publicação em Instagram via Buffer",
+    id: "shopee",
+    name: "Shopee",
+    description: "Configure acesso à API da Shopee para buscar produtos",
+    color: "bg-orange-600",
+    fields: [
+      { key: "shopeeApiKey", label: "API Key", isSecret: true },
+      { key: "shopeePartnerId", label: "Partner ID", isSecret: false },
+    ],
   },
   {
-    id: "gemini",
-    name: "Gemini AI",
-    status: "healthy",
-    lastCheck: "2026-04-21T14:20:00Z",
-    responseTime: 2100,
-    description: "Geração de imagens com IA",
+    id: "gtm",
+    name: "Google Tag Manager",
+    description: "Configure GTM para rastreamento de eventos (opcional - não ativo ainda)",
+    color: "bg-gray-600",
+    fields: [{ key: "gtmId", label: "GTM ID", isSecret: false }],
   },
 ];
 
-const getStatusIcon = (status: string) => {
-  switch (status) {
-    case "healthy":
-      return <CheckCircle className="w-6 h-6 text-accent" />;
-    case "warning":
-      return <AlertCircle className="w-6 h-6 text-yellow-500" />;
-    case "error":
-      return <XCircle className="w-6 h-6 text-destructive" />;
-    default:
-      return null;
-  }
-};
-
-const getStatusLabel = (status: string) => {
-  switch (status) {
-    case "healthy":
-      return "Saudável";
-    case "warning":
-      return "Aviso";
-    case "error":
-      return "Erro";
-    default:
-      return status;
-  }
-};
-
-const getStatusBadgeClass = (status: string) => {
-  switch (status) {
-    case "healthy":
-      return "bg-accent/10 text-accent border-accent/20";
-    case "warning":
-      return "bg-yellow-500/10 text-yellow-600 border-yellow-500/20";
-    case "error":
-      return "bg-destructive/10 text-destructive border-destructive/20";
-    default:
-      return "bg-muted text-muted-foreground border-muted";
-  }
-};
-
-const formatDate = (dateString: string) => {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-
-  if (diffMins < 1) return "Agora";
-  if (diffMins < 60) return `${diffMins}m atrás`;
-  const diffHours = Math.floor(diffMins / 60);
-  if (diffHours < 24) return `${diffHours}h atrás`;
-  return date.toLocaleString("pt-BR");
-};
-
 export default function Integrations() {
-  const [integrations, setIntegrations] = useState(mockIntegrations);
+  const [selectedIntegration, setSelectedIntegration] = useState<string | null>(null);
+  const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
+  const [formData, setFormData] = useState<Record<string, any>>({});
 
-  const handleTestIntegration = (id: string) => {
-    toast.loading(`Testando ${id}...`);
-    setTimeout(() => {
-      toast.success(`${id} testado com sucesso!`);
-    }, 2000);
+  const updateSettingsMutation = trpc.admin.updateIntegrationSettings.useMutation();
+
+  const handleInputChange = (field: string, value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
   };
 
-  const healthyCount = integrations.filter((i) => i.status === "healthy").length;
-  const warningCount = integrations.filter((i) => i.status === "warning").length;
-  const errorCount = integrations.filter((i) => i.status === "error").length;
+  const handleSave = async () => {
+    if (!selectedIntegration) return;
+
+    try {
+      await updateSettingsMutation.mutateAsync({
+        integrationName: selectedIntegration,
+        settings: formData,
+      });
+      toast.success(`${selectedIntegration.toUpperCase()} configurado com sucesso!`);
+      setFormData({});
+      setSelectedIntegration(null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao salvar");
+    }
+  };
+
+  const toggleShowSecret = (key: string) => {
+    setShowSecrets((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
+
+  const currentIntegration = selectedIntegration
+    ? INTEGRATIONS.find((i) => i.id === selectedIntegration)
+    : null;
+
+  const IntegrationField = ({ field }: any) => (
+    <div className="space-y-2">
+      <label className="text-sm font-medium text-foreground">{field.label}</label>
+      <div className="flex gap-2">
+        <Input
+          type={field.isSecret && !showSecrets[field.key] ? "password" : "text"}
+          placeholder={`Digite ${field.label.toLowerCase()}`}
+          value={formData[field.key] || ""}
+          onChange={(e) => handleInputChange(field.key, e.target.value)}
+          className="bg-slate-900 border-slate-700 text-white flex-1"
+        />
+        {field.isSecret && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => toggleShowSecret(field.key)}
+            title={showSecrets[field.key] ? "Ocultar" : "Mostrar"}
+          >
+            {showSecrets[field.key] ? (
+              <Eye className="w-4 h-4" />
+            ) : (
+              <EyeOff className="w-4 h-4" />
+            )}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">Integrações</h1>
-            <p className="text-muted-foreground mt-1">
-              Status das conexões externas do pipeline
-            </p>
-          </div>
-          <Button className="bg-accent hover:bg-accent/90">
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Verificar Tudo
-          </Button>
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Integrações</h1>
+          <p className="text-muted-foreground mt-1">Configure APIs e serviços externos</p>
         </div>
 
-        {/* Status Summary */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="bg-card border-border">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-accent" />
-                Saudáveis
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-accent">{healthyCount}</div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-card border-border">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-yellow-500" />
-                Avisos
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-yellow-500">{warningCount}</div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-card border-border">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <XCircle className="w-4 h-4 text-destructive" />
-                Erros
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-destructive">{errorCount}</div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Integrations List */}
-        <div className="space-y-4">
-          {integrations.map((integration) => (
-            <Card key={integration.id} className="bg-card border-border">
-              <CardContent className="pt-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-4 flex-1">
-                    {/* Status Icon */}
-                    <div className="mt-1">
-                      {getStatusIcon(integration.status)}
-                    </div>
-
-                    {/* Integration Info */}
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="text-lg font-semibold text-foreground">
-                          {integration.name}
-                        </h3>
-                        <Badge
-                          variant="outline"
-                          className={`${getStatusBadgeClass(integration.status)} border`}
-                        >
-                          {getStatusLabel(integration.status)}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground mb-2">
-                        {integration.description}
-                      </p>
-
-                      {/* Details */}
-                      <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          <Activity className="w-3 h-3" />
-                          Resposta: {integration.responseTime}ms
-                        </div>
-                        <div>
-                          Última verificação: {formatDate(integration.lastCheck)}
-                        </div>
-                      </div>
-
-                      {/* Error Message */}
-                      {integration.errorMessage && (
-                        <div className="mt-2 p-2 bg-yellow-500/10 rounded text-xs text-yellow-600">
-                          ⚠️ {integration.errorMessage}
-                        </div>
-                      )}
-                    </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Integrations List */}
+          <div className="space-y-2">
+            <h2 className="text-lg font-semibold text-foreground mb-4">Serviços Disponíveis</h2>
+            {INTEGRATIONS.map((integration) => (
+              <button
+                key={integration.id}
+                onClick={() => {
+                  setSelectedIntegration(integration.id);
+                  setFormData({});
+                  setShowSecrets({});
+                }}
+                className={`w-full text-left p-4 rounded-lg border-2 transition ${
+                  selectedIntegration === integration.id
+                    ? "border-orange-500 bg-orange-500/10"
+                    : "border-border hover:border-orange-500/50"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-semibold text-foreground">{integration.name}</h3>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {integration.fields.length} campos
+                    </p>
                   </div>
-
-                  {/* Test Button */}
-                  <Button
-                    onClick={() => handleTestIntegration(integration.name)}
-                    variant="outline"
-                    size="sm"
-                    className="border-border"
-                  >
-                    Testar
-                  </Button>
+                  <ChevronDown
+                    className={`w-4 h-4 transition ${
+                      selectedIntegration === integration.id ? "rotate-180" : ""
+                    }`}
+                  />
                 </div>
-              </CardContent>
-            </Card>
-          ))}
+              </button>
+            ))}
+          </div>
+
+          {/* Configuration Panel */}
+          <div className="lg:col-span-2">
+            {selectedIntegration && currentIntegration ? (
+              <Card className="bg-card border-border">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>{currentIntegration.name}</CardTitle>
+                      <CardDescription>{currentIntegration.description}</CardDescription>
+                    </div>
+                    <Badge className={currentIntegration.color}>Configurar</Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {currentIntegration.fields.map((field) => (
+                    <IntegrationField key={field.key} field={field} />
+                  ))}
+
+                  {selectedIntegration === "gtm" && (
+                    <div className="p-3 bg-yellow-500/10 rounded text-sm text-yellow-600 border border-yellow-500/20">
+                      ℹ️ O GTM será configurado mas não ativado por enquanto. Você poderá ativar quando estiver pronto.
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 pt-4">
+                    <Button
+                      onClick={handleSave}
+                      disabled={updateSettingsMutation.isPending}
+                      className={`flex-1 ${currentIntegration.color}`}
+                    >
+                      {updateSettingsMutation.isPending ? "Salvando..." : "Salvar Configuração"}
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        setSelectedIntegration(null);
+                        setFormData({});
+                      }}
+                      variant="outline"
+                      className="flex-1"
+                    >
+                      Cancelar
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="bg-card border-border">
+                <CardContent className="pt-6">
+                  <div className="text-center py-12">
+                    <p className="text-muted-foreground">
+                      Selecione um serviço à esquerda para configurar
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
         </div>
 
-        {/* Integration Details */}
-        <Card className="bg-card border-border">
+        {/* Removed Integrations */}
+        <Card className="bg-card border-border border-red-500/30">
           <CardHeader>
-            <CardTitle>Detalhes de Configuração</CardTitle>
-            <CardDescription>
-              Informações sobre as integrações ativas
-            </CardDescription>
+            <CardTitle className="text-red-500">Integrações Removidas</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4 text-sm">
-              <div>
-                <p className="font-medium text-foreground mb-1">Shopee API</p>
-                <p className="text-muted-foreground">
-                  Endpoint: https://api.shopee.com.br/v2/
-                </p>
-              </div>
-              <div>
-                <p className="font-medium text-foreground mb-1">Telegram Bot</p>
-                <p className="text-muted-foreground">
-                  Token configurado e ativo. Canais: 2 ativos
-                </p>
-              </div>
-              <div>
-                <p className="font-medium text-foreground mb-1">Buffer/Instagram</p>
-                <p className="text-muted-foreground">
-                  Contas conectadas: 1. Limite de requisições: 1000/dia
-                </p>
-              </div>
-              <div>
-                <p className="font-medium text-foreground mb-1">Gemini AI</p>
-                <p className="text-muted-foreground">
-                  Modelo: Gemini 2.0. Quota: 100 imagens/dia
-                </p>
-              </div>
+            <div className="space-y-2 text-sm text-muted-foreground">
+              <p>✓ Buffer foi removido. Use Meta API diretamente para Instagram e Facebook.</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Security Note */}
+        <Card className="bg-card border-border border-green-500/30">
+          <CardHeader>
+            <CardTitle className="text-green-600">🔒 Segurança</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 text-sm text-muted-foreground">
+              <p>✓ Dados sensíveis (tokens, secrets) são criptografados no servidor</p>
+              <p>✓ Nunca são retornados para o frontend após salvar</p>
+              <p>✓ Use o ícone de olho para visualizar/ocultar durante configuração</p>
             </div>
           </CardContent>
         </Card>

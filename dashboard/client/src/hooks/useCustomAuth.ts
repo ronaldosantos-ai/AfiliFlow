@@ -1,61 +1,42 @@
-import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
+import { trpc } from "@/lib/trpc";
 
 export interface AuthUser {
   id: number;
   email: string;
   name: string;
-  isAdmin: boolean;
+  role: string;
   isAuthorized: boolean;
 }
 
 export function useCustomAuth() {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [loading, setLoading] = useState(true);
   const [, setLocation] = useLocation();
+  
+  // Use tRPC to check authentication
+  const meQuery = trpc.auth.me.useQuery(undefined, {
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
 
-  useEffect(() => {
-    // Check if user is logged in (check localStorage or cookie)
-    const checkAuth = async () => {
-      try {
-        const response = await fetch("/api/auth/me", {
-          credentials: "include",
-        });
-        
-        if (response.ok) {
-          const userData = await response.json();
-          setUser(userData);
-        } else {
-          setUser(null);
-        }
-      } catch (error) {
-        console.error("Auth check failed:", error);
-        setUser(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    checkAuth();
-  }, []);
+  const logoutMutation = trpc.auth.logout.useMutation({
+    onSuccess: () => {
+      setLocation("/login");
+    },
+  });
 
   const logout = async () => {
     try {
-      await fetch("/api/auth/logout", {
-        method: "POST",
-        credentials: "include",
-      });
-      setUser(null);
-      setLocation("/login");
+      await logoutMutation.mutateAsync();
     } catch (error) {
       console.error("Logout failed:", error);
+      setLocation("/login");
     }
   };
 
   return {
-    user,
-    loading,
-    isAuthenticated: !!user,
+    user: meQuery.data as AuthUser | null,
+    loading: meQuery.isLoading,
+    isAuthenticated: !!meQuery.data,
     logout,
   };
 }

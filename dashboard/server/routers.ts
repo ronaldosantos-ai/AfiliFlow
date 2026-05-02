@@ -15,6 +15,7 @@ import {
 import { registerUser, loginUser, getPendingUsers, authorizeUser, rejectUser } from "./auth";
 import type { User } from "../drizzle/schema";
 import { z } from "zod";
+import { eq } from "drizzle-orm";
 
 /**
  * Serialize a User record for safe transmission to the frontend.
@@ -70,6 +71,7 @@ export const appRouter = router({
   }),
 
   admin: router({
+    // User management
     getPendingUsers: protectedProcedure.query(async () => {
       return await getPendingUsers();
     }),
@@ -83,6 +85,76 @@ export const appRouter = router({
       .input(z.object({ userId: z.number() }))
       .mutation(async ({ input }) => {
         await rejectUser(input.userId);
+        return { success: true };
+      }),
+    getAllUsers: protectedProcedure.query(async () => {
+      const db = await import('./db').then(m => m.getDb());
+      if (!db) throw new Error('Database not available');
+      const { users } = await import('../drizzle/schema');
+      return await db.select().from(users);
+    }),
+    
+    // Content approval
+    getPendingApprovals: protectedProcedure.query(async () => {
+      const db = await import('./db').then(m => m.getDb());
+      if (!db) throw new Error('Database not available');
+      const { contentApprovals } = await import('../drizzle/schema');
+      return await db.select().from(contentApprovals).where(eq(contentApprovals.status, 'pending'));
+    }),
+    approveContent: protectedProcedure
+      .input(z.object({ approvalId: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const db = await import('./db').then(m => m.getDb());
+        if (!db) throw new Error('Database not available');
+        const { contentApprovals } = await import('../drizzle/schema');
+        await db.update(contentApprovals)
+          .set({ status: 'approved', approvedAt: new Date(), approvedBy: ctx.user?.id })
+          .where(eq(contentApprovals.id, input.approvalId));
+        return { success: true };
+      }),
+    rejectContent: protectedProcedure
+      .input(z.object({ approvalId: z.number(), reason: z.string() }))
+      .mutation(async ({ input, ctx }) => {
+        const db = await import('./db').then(m => m.getDb());
+        if (!db) throw new Error('Database not available');
+        const { contentApprovals } = await import('../drizzle/schema');
+        await db.update(contentApprovals)
+          .set({ status: 'rejected', rejectionReason: input.reason, approvedAt: new Date(), approvedBy: ctx.user?.id })
+          .where(eq(contentApprovals.id, input.approvalId));
+        return { success: true };
+      }),
+    
+    // Integration settings
+    getIntegrationSettings: protectedProcedure
+      .input(z.object({ integrationName: z.string() }))
+      .query(async ({ input }) => {
+        const db = await import('./db').then(m => m.getDb());
+        if (!db) throw new Error('Database not available');
+        const { integrationSettings } = await import('../drizzle/schema');
+        const result = await db.select().from(integrationSettings).where(eq(integrationSettings.integrationName, input.integrationName));
+        return result[0] || null;
+      }),
+    updateIntegrationSettings: protectedProcedure
+      .input(z.object({
+        integrationName: z.string(),
+        settings: z.record(z.string(), z.string().nullable().optional())
+      }))
+      .mutation(async ({ input }) => {
+        const db = await import('./db').then(m => m.getDb());
+        if (!db) throw new Error('Database not available');
+        const { integrationSettings } = await import('../drizzle/schema');
+        const existing = await db.select().from(integrationSettings).where(eq(integrationSettings.integrationName, input.integrationName));
+        
+        if (existing.length > 0) {
+          await db.update(integrationSettings)
+            .set(input.settings)
+            .where(eq(integrationSettings.integrationName, input.integrationName));
+        } else {
+          await db.insert(integrationSettings).values({
+            integrationName: input.integrationName,
+            ...input.settings
+          });
+        }
         return { success: true };
       }),
   }),
