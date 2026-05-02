@@ -7,12 +7,14 @@
  * every deployment.
  *
  * Usage:
- *   node scripts/migrate.js
+ *   node scripts/migrate.cjs
  *
  * Requires the DATABASE_URL environment variable to be set.
  */
 
-import mysql from "mysql2/promise";
+"use strict";
+
+const mysql = require("mysql2/promise");
 
 const DATABASE_URL = process.env.DATABASE_URL;
 
