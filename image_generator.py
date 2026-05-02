@@ -6,12 +6,14 @@ usando a API do Gemini (google-genai) com Imagen 3.
 
 import os
 import requests
+import logging
 from io import BytesIO
 from PIL import Image
 
 from google import genai
 from google.genai import types
 import config
+logger = logging.getLogger(__name__)
 
 # Configura o cliente Gemini
 client = genai.Client(api_key=config.GEMINI_API_KEY)
