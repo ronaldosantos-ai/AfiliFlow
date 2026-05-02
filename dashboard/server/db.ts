@@ -1,6 +1,6 @@
 import { eq, desc, and, gte, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, posts, pipelineConfig, executionLogs, integrationStatus, cacheItems, metricsSnapshots } from "../drizzle/schema";
+import { InsertUser, users, posts, pipelineConfig, executionLogs, integrationStatus, cacheItems, metricsSnapshots, contentApprovals, integrationSettings } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;

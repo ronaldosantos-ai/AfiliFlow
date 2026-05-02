@@ -130,3 +130,52 @@ export const metricsSnapshots = mysqlTable("metricsSnapshots", {
 
 export type MetricsSnapshot = typeof metricsSnapshots.$inferSelect;
 export type InsertMetricsSnapshot = typeof metricsSnapshots.$inferInsert;
+
+/**
+ * Content approval table: stores pending content for admin review
+ */
+export const contentApprovals = mysqlTable("contentApprovals", {
+  id: int("id").autoincrement().primaryKey(),
+  postId: int("postId").notNull(),
+  productName: text("productName").notNull(),
+  productImage: varchar("productImage", { length: 512 }),
+  affiliateUrl: varchar("affiliateUrl", { length: 512 }).notNull(),
+  proposedChannels: json("proposedChannels").$type<string[]>().default([]).notNull(),
+  status: mysqlEnum("status", ["pending", "approved", "rejected"]).default("pending").notNull(),
+  rejectionReason: text("rejectionReason"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  approvedAt: timestamp("approvedAt"),
+  approvedBy: int("approvedBy"), // User ID who approved/rejected
+});
+
+export type ContentApproval = typeof contentApprovals.$inferSelect;
+export type InsertContentApproval = typeof contentApprovals.$inferInsert;
+
+/**
+ * Integration settings table: stores API keys and configuration
+ */
+export const integrationSettings = mysqlTable("integrationSettings", {
+  id: int("id").autoincrement().primaryKey(),
+  integrationName: varchar("integrationName", { length: 64 }).notNull().unique(),
+  // Meta API
+  metaAppId: varchar("metaAppId", { length: 255 }),
+  metaAppSecret: varchar("metaAppSecret", { length: 255 }),
+  metaPageAccessToken: varchar("metaPageAccessToken", { length: 255 }),
+  metaPageId: varchar("metaPageId", { length: 255 }),
+  metaInstagramAccountId: varchar("metaInstagramAccountId", { length: 255 }),
+  // Telegram
+  telegramBotToken: varchar("telegramBotToken", { length: 255 }),
+  telegramChatId: varchar("telegramChatId", { length: 255 }),
+  // Shopee
+  shopeeApiKey: varchar("shopeeApiKey", { length: 255 }),
+  shopeePartnerId: varchar("shopeePartnerId", { length: 255 }),
+  // GTM
+  gtmId: varchar("gtmId", { length: 255 }),
+  // Status
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type IntegrationSettings = typeof integrationSettings.$inferSelect;
+export type InsertIntegrationSettings = typeof integrationSettings.$inferInsert;
