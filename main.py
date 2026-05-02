@@ -14,6 +14,7 @@ Fluxo por execução:
 import logging
 import sys
 import time
+from datetime import datetime
 
 from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -23,7 +24,9 @@ import cache
 import shopee
 import telegram_sender
 import image_generator
-import buffer_publisher
+import meta_publisher
+import python_db_integration
+import utm_pixel_tracking
 
 # ── Logging ──────────────────────────────────────────────
 logging.basicConfig(
@@ -55,6 +58,29 @@ def run_pipeline():
     if not product:
         logger.warning("⛔ Pipeline encerrado: nenhum produto disponível.")
         return
+
+    # 2.1 Adiciona rastreamento (UTMs)
+    # Criamos o tracker com as configurações do ambiente
+    tracker = utm_pixel_tracking.initialize_tracking_manager({
+        'utm_source': 'afiliflow',
+        'utm_medium': 'social',
+        'facebook_pixel_id': os.getenv('META_PIXEL_ID'),
+        'gtm_id': os.getenv('GTM_ID')
+    })
+    
+    # Geramos a URL com UTMs específicas para o fluxo geral
+    # Note: No futuro, podemos gerar URLs diferentes para Telegram e Instagram se desejar
+    tracking_data = tracker.create_tracking_url(
+        affiliate_url=product.affiliate_url,
+        campaign_name=f"shopee_br_{datetime.now().strftime('%Y%m')}",
+        product_name=product.title,
+        category=product.category_label,
+        product_id=product.asin,
+        price=product.price
+    )
+    
+    product.affiliate_url = tracking_data['url']
+    logger.info(f"🔗 URL com UTM e Rastreamento: {product.affiliate_url}")
 
     logger.info(f"📦 Produto: {product.title}")
     logger.info(f"   ID: {product.asin} | R${product.price:.2f} | ⭐{product.rating} ({product.reviews} reviews)")
@@ -103,26 +129,53 @@ def run_pipeline():
             affiliate_url=product.affiliate_url,
         )
 
-        # 6. Publica no Buffer (Instagram + Facebook)
-        logger.info("📲 Publicando via Buffer...")
-        buffer_ok = buffer_publisher.publish_to_social(
-            image_path=image_path,
-            caption=caption,
-        )
-        if buffer_ok:
-            success_count += 1
-            logger.info("✅ Buffer: OK")
-        else:
-            logger.error("❌ Buffer: FALHOU")
+    # 6. Publica no Instagram via Meta API
+    logger.info("📲 Publicando via Meta API (Instagram)...")
+    meta_ok = meta_publisher.publish_to_instagram(
+        image_url=image_generator.get_public_image_url(image_path), # Assumindo que a imagem precisa de URL pública
+        caption=caption,
+    )
+    if meta_ok:
+        success_count += 1
+        logger.info("✅ Meta API (Instagram): OK")
+    else:
+        logger.error("❌ Meta API (Instagram): FALHOU")
 
         # 7. Remove imagem temporária
         image_generator.cleanup_image(image_path)
 
     # 8. Marca no cache apenas se pelo menos uma publicação funcionou
     if success_count > 0:
-        cache.mark_published(product.asin)
-        logger.info(f"📝 Cache atualizado para ID {product.asin}")
-
+        # Tenta salvar no banco de dados primeiro
+        db_saved = python_db_integration.add_cache_item(
+            product_id=product.asin,
+            product_name=product.title,
+            image_url=product.image_url,
+            affiliate_url=product.affiliate_url,
+            category=product.category
+        )
+        
+        # Fallback para cache local se banco de dados não estiver disponível
+        if not db_saved:
+            cache.mark_published(product.asin)
+            logger.info(f"📝 Cache local atualizado para ID {product.asin}")
+        else:
+            logger.info(f"📝 Cache do banco de dados atualizado para ID {product.asin}")
+    
+    # Registra a execução no banco de dados
+    execution_log = {
+        'executionId': f"{product.asin}_{datetime.now().timestamp()}",
+        'status': 'success' if success_count == 2 else ('partial' if success_count > 0 else 'error'),
+        'productFound': product.asin,
+        'productName': product.title,
+        'channelsPublished': ['telegram'] if success_count > 0 else [],
+        'executionTime': 0
+    }
+    if success_count > 0:
+        execution_log['channelsPublished'].append('instagram')
+    
+    python_db_integration.create_execution_log(execution_log)
+    
     stats = cache.get_stats()
     logger.info(f"📊 Total de produtos publicados no cache: {stats['total_published']}")
     logger.info("=" * 60)
@@ -193,10 +246,7 @@ if __name__ == "__main__":
             logger.info("▶️  Modo: execução única (teste)")
             run_pipeline()
 
-        elif arg == "profiles":
-            # Lista perfis do Buffer (para pegar os IDs)
-            logger.info("📋 Listando perfis do Buffer...")
-            buffer_publisher.get_profiles()
+
 
         elif arg == "cache":
             # Mostra stats do cache

@@ -35,10 +35,12 @@ TELEGRAM_CHAT_ID   = os.getenv("TELEGRAM_CHAT_ID")
 # ── Gemini ────────────────────────────────────────────────
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-# ── Buffer ────────────────────────────────────────────────
-BUFFER_ACCESS_TOKEN          = os.getenv("BUFFER_ACCESS_TOKEN")
-BUFFER_PROFILE_ID_INSTAGRAM  = os.getenv("BUFFER_PROFILE_ID_INSTAGRAM")
-BUFFER_PROFILE_ID_FACEBOOK   = os.getenv("BUFFER_PROFILE_ID_FACEBOOK")
+# ── Meta API (Instagram/Facebook) ─────────────────────────
+META_APP_ID = os.getenv("META_APP_ID")
+META_APP_SECRET = os.getenv("META_APP_SECRET")
+META_PAGE_ACCESS_TOKEN = os.getenv("META_PAGE_ACCESS_TOKEN")
+META_PAGE_ID = os.getenv("META_PAGE_ID")
+META_INSTAGRAM_ACCOUNT_ID = os.getenv("META_INSTAGRAM_ACCOUNT_ID")
 
 # ── Scheduler ─────────────────────────────────────────────
 _raw_times = os.getenv("SCHEDULE_TIMES", "08:00,12:00,18:00,21:00")
@@ -73,12 +75,13 @@ def validate():
         "TELEGRAM_BOT_TOKEN": TELEGRAM_BOT_TOKEN,
         "TELEGRAM_CHAT_ID":   TELEGRAM_CHAT_ID,
         "GEMINI_API_KEY":     GEMINI_API_KEY,
-        "BUFFER_ACCESS_TOKEN": BUFFER_ACCESS_TOKEN,
+        "META_PAGE_ACCESS_TOKEN": META_PAGE_ACCESS_TOKEN,
+        "META_INSTAGRAM_ACCOUNT_ID": META_INSTAGRAM_ACCOUNT_ID,
     }
     missing = [k for k, v in required.items() if not v]
     if missing:
         raise EnvironmentError(
             f"❌ Variáveis de ambiente faltando: {', '.join(missing)}\n"
-            "Verifique o arquivo .env"
+            "Verifique o arquivo .env ou as variáveis no Railway"
         )
     print("✅ Configurações validadas com sucesso.")

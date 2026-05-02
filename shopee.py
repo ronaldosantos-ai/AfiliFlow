@@ -104,7 +104,8 @@ class ShopeeAffiliateAPI:
                 # Usa priceMin como preço base
                 price = float(node.get('priceMin') or node.get('priceMax') or 0)
                 rating = float(node.get('ratingStar') or 4.5)
-                reviews = int(node.get('') or 0)
+                # Tenta extrair o número de reviews de diferentes campos possíveis
+                reviews = int(node.get('reviewCount') or node.get('ratingCount') or node.get('salesVolume') or 0)
 
                 p = Product(
                     asin=str(node['itemId']),

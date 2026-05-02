@@ -11,18 +11,20 @@ import {
 } from "drizzle-orm/mysql-core";
 
 /**
- * Core user table backing auth flow.
+ * Core user table - supports both OAuth and email/password authentication
  */
 export const users = mysqlTable("users", {
   id: int("id").autoincrement().primaryKey(),
-  openId: varchar("openId", { length: 64 }).notNull().unique(),
+  openId: varchar("openId", { length: 64 }).unique(), // Optional for email/password auth
+  email: varchar("email", { length: 320 }).unique(),
+  passwordHash: varchar("passwordHash", { length: 255 }), // For email/password auth
   name: text("name"),
-  email: varchar("email", { length: 320 }),
-  loginMethod: varchar("loginMethod", { length: 64 }),
+  loginMethod: varchar("loginMethod", { length: 64 }), // 'oauth' or 'email'
   role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
+  isAuthorized: boolean("isAuthorized").default(false).notNull(), // For email/password: needs admin approval
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-  lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
+  lastSignedIn: timestamp("lastSignedIn"), // Nullable - only set on actual login
 });
 
 export type User = typeof users.$inferSelect;
