@@ -13,12 +13,32 @@ import {
   getMetricsSnapshot,
 } from "./db";
 import { registerUser, loginUser, getPendingUsers, authorizeUser, rejectUser } from "./auth";
+import type { User } from "../drizzle/schema";
 import { z } from "zod";
+
+/**
+ * Serialize a User record for safe transmission to the frontend.
+ * - Converts Date fields to ISO strings so JSON serialization is always valid.
+ * - Strips sensitive fields (passwordHash, openId) that must never leave the server.
+ */
+export function serializeUser(user: User) {
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    loginMethod: user.loginMethod,
+    isAuthorized: user.isAuthorized,
+    createdAt: user.createdAt instanceof Date ? user.createdAt.toISOString() : user.createdAt,
+    updatedAt: user.updatedAt instanceof Date ? user.updatedAt.toISOString() : user.updatedAt,
+    lastSignedIn: user.lastSignedIn instanceof Date ? user.lastSignedIn.toISOString() : (user.lastSignedIn ?? null),
+  };
+}
 
 export const appRouter = router({
   system: systemRouter,
   auth: router({
-    me: publicProcedure.query(opts => opts.ctx.user),
+    me: publicProcedure.query(opts => opts.ctx.user ? serializeUser(opts.ctx.user) : null),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
