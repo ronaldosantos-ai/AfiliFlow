@@ -18,6 +18,9 @@ import type {
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === "string" && value.length > 0;
 
+// Prefix used to encode email-based user identities in the session token
+const EMAIL_ID_PREFIX = "email:";
+
 export type SessionPayload = {
   openId: string;
   appId: string;
@@ -160,9 +163,15 @@ class SDKServer {
   }
 
   /**
-   * Create a session token for a Manus user openId
+   * Create a session token for a Manus user openId or an email-based user.
+   * For email/password users, pass `{ email }` instead of a bare openId so
+   * the token carries a stable, prefixed identifier that `authenticateRequest`
+   * can distinguish from OAuth openIds.
    * @example
-   * const sessionToken = await sdk.createSessionToken(userInfo.openId);
+   * // OAuth user
+   * const token = await sdk.createSessionToken(userInfo.openId, { name: userInfo.name });
+   * // Email/password user
+   * const token = await sdk.createSessionToken(`${EMAIL_ID_PREFIX}${user.email}`, { name: user.name });
    */
   async createSessionToken(
     openId: string,
@@ -212,11 +221,7 @@ class SDKServer {
       });
       const { openId, appId, name } = payload as Record<string, unknown>;
 
-      if (
-        !isNonEmptyString(openId) ||
-        !isNonEmptyString(appId) ||
-        !isNonEmptyString(name)
-      ) {
+      if (!isNonEmptyString(openId) || !isNonEmptyString(appId)) {
         console.warn("[Auth] Session payload missing required fields");
         return null;
       }
@@ -224,7 +229,8 @@ class SDKServer {
       return {
         openId,
         appId,
-        name,
+        // name is optional — email/password sessions may omit it
+        name: typeof name === "string" ? name : "",
       };
     } catch (error) {
       console.warn("[Auth] Session verification failed", String(error));
@@ -268,6 +274,24 @@ class SDKServer {
 
     const sessionUserId = session.openId;
     const signedInAt = new Date();
+
+    // Email/password users are identified by an "email:" prefix in the token.
+    // Look them up by email directly; they have no OAuth openId.
+    if (sessionUserId.startsWith(EMAIL_ID_PREFIX)) {
+      const email = sessionUserId.slice(EMAIL_ID_PREFIX.length);
+      const user = await db.getUserByEmail(email);
+
+      if (!user) {
+        throw ForbiddenError("User not found");
+      }
+
+      if (!user.isAuthorized && user.role !== "admin") {
+        throw ForbiddenError("User not authorized");
+      }
+
+      return user;
+    }
+
     let user = await db.getUserByOpenId(sessionUserId);
 
     // If user not in DB, sync from OAuth server automatically

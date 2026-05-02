@@ -1,5 +1,6 @@
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
+import { sdk } from "./_core/sdk";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import {
@@ -13,8 +14,6 @@ import {
 } from "./db";
 import { registerUser, loginUser, getPendingUsers, authorizeUser, rejectUser } from "./auth";
 import { z } from "zod";
-
-const COOKIE_NAME = "app_session_id";
 
 export const appRouter = router({
   system: systemRouter,
@@ -37,10 +36,13 @@ export const appRouter = router({
       .input(z.object({ email: z.string().email(), password: z.string() }))
       .mutation(async ({ input, ctx }) => {
         const user = await loginUser(input.email, input.password);
-        ctx.res.cookie(COOKIE_NAME, JSON.stringify(user), {
-          httpOnly: true,
-          secure: true,
-          sameSite: "none",
+        const sessionToken = await sdk.createSessionToken(
+          `email:${user.email}`,
+          { name: user.name ?? "" }
+        );
+        const cookieOptions = getSessionCookieOptions(ctx.req);
+        ctx.res.cookie(COOKIE_NAME, sessionToken, {
+          ...cookieOptions,
           maxAge: 7 * 24 * 60 * 60 * 1000,
         });
         return { success: true, user };
