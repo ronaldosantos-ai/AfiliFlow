@@ -5,7 +5,7 @@
     "buildCommand": "pnpm install && pnpm build"
   },
   "deploy": {
-    "startCommand": "pnpm start",
+    "startCommand": "pnpm migrate && pnpm start",
     "restartPolicyType": "ON_FAILURE"
   }
 }
