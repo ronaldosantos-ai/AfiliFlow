@@ -137,7 +137,7 @@ export const appRouter = router({
     updateIntegrationSettings: protectedProcedure
       .input(z.object({
         integrationName: z.string(),
-        settings: z.record(z.any())
+        settings: z.record(z.string(), z.string().nullable().optional())
       }))
       .mutation(async ({ input }) => {
         const db = await import('./db').then(m => m.getDb());
