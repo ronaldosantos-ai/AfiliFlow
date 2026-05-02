@@ -216,24 +216,39 @@ class SDKServer {
 
     try {
       const secretKey = this.getSessionSecret();
+
+      if (!secretKey.length) {
+        console.error("[Auth] JWT_SECRET is not configured — cannot verify session");
+        return null;
+      }
+
       const { payload } = await jwtVerify(cookieValue, secretKey, {
         algorithms: ["HS256"],
       });
       const { openId, appId, name } = payload as Record<string, unknown>;
 
-      if (!isNonEmptyString(openId) || !isNonEmptyString(appId)) {
-        console.warn("[Auth] Session payload missing required fields");
+      console.debug("[Auth] verifySession payload:", {
+        openId: typeof openId === "string" ? openId.slice(0, 32) + "..." : openId,
+        appId,
+        hasName: typeof name === "string" && name.length > 0,
+      });
+
+      // openId is always required; appId may be empty for email/password users
+      // when VITE_APP_ID is not configured in the environment.
+      if (!isNonEmptyString(openId)) {
+        console.warn("[Auth] Session payload missing openId");
         return null;
       }
 
       return {
         openId,
-        appId,
+        // Preserve whatever appId was signed into the token (may be "")
+        appId: typeof appId === "string" ? appId : "",
         // name is optional — email/password sessions may omit it
         name: typeof name === "string" ? name : "",
       };
     } catch (error) {
-      console.warn("[Auth] Session verification failed", String(error));
+      console.warn("[Auth] Session verification failed:", String(error));
       return null;
     }
   }
@@ -266,27 +281,58 @@ class SDKServer {
     // Regular authentication flow
     const cookies = this.parseCookies(req.headers.cookie);
     const sessionCookie = cookies.get(COOKIE_NAME);
+
+    console.debug("[Auth] authenticateRequest — cookie present:", !!sessionCookie);
+
     const session = await this.verifySession(sessionCookie);
 
     if (!session) {
+      console.warn("[Auth] authenticateRequest — session verification returned null");
       throw ForbiddenError("Invalid session cookie");
     }
 
     const sessionUserId = session.openId;
     const signedInAt = new Date();
 
+    console.debug("[Auth] authenticateRequest — sessionUserId prefix:", sessionUserId.slice(0, 16));
+
     // Email/password users are identified by an "email:" prefix in the token.
     // Look them up by email directly; they have no OAuth openId.
     if (sessionUserId.startsWith(EMAIL_ID_PREFIX)) {
       const email = sessionUserId.slice(EMAIL_ID_PREFIX.length);
+
+      console.debug("[Auth] Email-based session detected for:", email);
+
       const user = await db.getUserByEmail(email);
 
+      console.debug("[Auth] getUserByEmail result:", user
+        ? { id: user.id, email: user.email, role: user.role, isAuthorized: user.isAuthorized, loginMethod: user.loginMethod }
+        : null
+      );
+
       if (!user) {
+        console.warn("[Auth] Email-based user not found in DB:", email);
         throw ForbiddenError("User not found");
       }
 
+      // Reject only users who are explicitly not authorized AND not admins.
+      // Admins are always allowed regardless of the isAuthorized flag.
       if (!user.isAuthorized && user.role !== "admin") {
+        console.warn("[Auth] Email-based user not authorized:", email, "role:", user.role);
         throw ForbiddenError("User not authorized");
+      }
+
+      // Update last sign-in timestamp for email users too
+      try {
+        const db2 = await import("../db").then(m => m.getDb());
+        if (db2) {
+          const { eq } = await import("drizzle-orm");
+          const { users: usersTable } = await import("../../drizzle/schema");
+          await db2.update(usersTable).set({ lastSignedIn: signedInAt }).where(eq(usersTable.id, user.id));
+        }
+      } catch (err) {
+        // Non-fatal: failing to update lastSignedIn should not block authentication
+        console.warn("[Auth] Failed to update lastSignedIn for email user:", err);
       }
 
       return user;
