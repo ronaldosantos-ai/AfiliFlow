@@ -28,6 +28,7 @@ import image_generator
 import meta_publisher
 import python_db_integration
 import utm_pixel_tracking
+import init_db_tables
 
 # ── Logging ──────────────────────────────────────────────
 logging.basicConfig(
@@ -231,6 +232,10 @@ if __name__ == "__main__":
 ╚══════════════════════════════════════════════╝
     """)
 
+    # Inicializa banco de dados (cria tabelas se não existirem)
+    logger.info("🗄️  Inicializando banco de dados...")
+    init_db_tables.init_db()
+    
     # Valida configurações antes de iniciar
     try:
         config.validate()
