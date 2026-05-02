@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/sidebar";
 import { useCustomAuth } from "@/hooks/useCustomAuth";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Users, CheckCircle } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -30,6 +30,8 @@ import { Button } from "./ui/button";
 const menuItems = [
   { icon: LayoutDashboard, label: "Métricas", path: "/" },
   { icon: Users, label: "Postagens", path: "/posts" },
+  { icon: CheckCircle, label: "Aprovações", path: "/approvals" },
+  { icon: Users, label: "Usuários", path: "/admin/users" },
   { icon: LayoutDashboard, label: "Configurações", path: "/config" },
   { icon: LayoutDashboard, label: "Logs", path: "/logs" },
   { icon: LayoutDashboard, label: "Cache", path: "/cache" },

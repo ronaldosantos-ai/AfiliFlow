@@ -7,6 +7,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import AdminUsers from "./pages/AdminUsers";
+import Approvals from "./pages/Approvals";
 import Metrics from "./pages/Metrics";
 import Posts from "./pages/Posts";
 import Config from "./pages/Config";
@@ -25,6 +26,7 @@ function Router() {
       <Route path="/cache" component={Cache} />
       <Route path="/integrations" component={Integrations} />
       <Route path="/admin/users" component={AdminUsers} />
+      <Route path="/approvals" component={Approvals} />
       <Route path="/404" component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />
