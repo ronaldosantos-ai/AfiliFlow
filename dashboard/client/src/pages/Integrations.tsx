@@ -1,55 +1,81 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
 
+const INTEGRATIONS = [
+  {
+    id: "meta",
+    name: "Meta API (Instagram & Facebook)",
+    description: "Configure acesso à Meta para publicar em Instagram e Facebook",
+    color: "bg-blue-600",
+    fields: [
+      { key: "metaAppId", label: "App ID", isSecret: true },
+      { key: "metaAppSecret", label: "App Secret", isSecret: true },
+      { key: "metaPageAccessToken", label: "Page Access Token", isSecret: true },
+      { key: "metaPageId", label: "Page ID", isSecret: false },
+      { key: "metaInstagramAccountId", label: "Instagram Account ID", isSecret: false },
+    ],
+  },
+  {
+    id: "telegram",
+    name: "Telegram",
+    description: "Configure bot do Telegram para publicar ofertas",
+    color: "bg-blue-400",
+    fields: [
+      { key: "telegramBotToken", label: "Bot Token", isSecret: true },
+      { key: "telegramChatId", label: "Chat ID", isSecret: false },
+    ],
+  },
+  {
+    id: "shopee",
+    name: "Shopee",
+    description: "Configure acesso à API da Shopee para buscar produtos",
+    color: "bg-orange-600",
+    fields: [
+      { key: "shopeeApiKey", label: "API Key", isSecret: true },
+      { key: "shopeePartnerId", label: "Partner ID", isSecret: false },
+    ],
+  },
+  {
+    id: "gtm",
+    name: "Google Tag Manager",
+    description: "Configure GTM para rastreamento de eventos (opcional - não ativo ainda)",
+    color: "bg-gray-600",
+    fields: [{ key: "gtmId", label: "GTM ID", isSecret: false }],
+  },
+];
+
 export default function Integrations() {
+  const [selectedIntegration, setSelectedIntegration] = useState<string | null>(null);
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
-  const [formData, setFormData] = useState<Record<string, any>>({
-    meta: {
-      metaAppId: "",
-      metaAppSecret: "",
-      metaPageAccessToken: "",
-      metaPageId: "",
-      metaInstagramAccountId: "",
-    },
-    telegram: {
-      telegramBotToken: "",
-      telegramChatId: "",
-    },
-    shopee: {
-      shopeeApiKey: "",
-      shopeePartnerId: "",
-    },
-    gtm: {
-      gtmId: "",
-    },
-  });
+  const [formData, setFormData] = useState<Record<string, any>>({});
 
   const updateSettingsMutation = trpc.admin.updateIntegrationSettings.useMutation();
 
-  const handleInputChange = (integration: string, field: string, value: string) => {
+  const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({
       ...prev,
-      [integration]: {
-        ...prev[integration],
-        [field]: value,
-      },
+      [field]: value,
     }));
   };
 
-  const handleSave = async (integration: string) => {
+  const handleSave = async () => {
+    if (!selectedIntegration) return;
+
     try {
       await updateSettingsMutation.mutateAsync({
-        integrationName: integration,
-        settings: formData[integration],
+        integrationName: selectedIntegration,
+        settings: formData,
       });
-      toast.success(`${integration.toUpperCase()} configurado com sucesso!`);
+      toast.success(`${selectedIntegration.toUpperCase()} configurado com sucesso!`);
+      setFormData({});
+      setSelectedIntegration(null);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Erro ao salvar");
     }
@@ -62,31 +88,33 @@ export default function Integrations() {
     }));
   };
 
-  const IntegrationField = ({
-    label,
-    value,
-    onChange,
-    placeholder,
-    isSecret = false,
-    fieldKey,
-  }: any) => (
+  const currentIntegration = selectedIntegration
+    ? INTEGRATIONS.find((i) => i.id === selectedIntegration)
+    : null;
+
+  const IntegrationField = ({ field }: any) => (
     <div className="space-y-2">
-      <label className="text-sm font-medium text-foreground">{label}</label>
+      <label className="text-sm font-medium text-foreground">{field.label}</label>
       <div className="flex gap-2">
         <Input
-          type={isSecret && !showSecrets[fieldKey] ? "password" : "text"}
-          placeholder={placeholder}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="bg-slate-900 border-slate-700 text-white"
+          type={field.isSecret && !showSecrets[field.key] ? "password" : "text"}
+          placeholder={`Digite ${field.label.toLowerCase()}`}
+          value={formData[field.key] || ""}
+          onChange={(e) => handleInputChange(field.key, e.target.value)}
+          className="bg-slate-900 border-slate-700 text-white flex-1"
         />
-        {isSecret && (
+        {field.isSecret && (
           <Button
             size="sm"
             variant="outline"
-            onClick={() => toggleShowSecret(fieldKey)}
+            onClick={() => toggleShowSecret(field.key)}
+            title={showSecrets[field.key] ? "Ocultar" : "Mostrar"}
           >
-            {showSecrets[fieldKey] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            {showSecrets[field.key] ? (
+              <Eye className="w-4 h-4" />
+            ) : (
+              <EyeOff className="w-4 h-4" />
+            )}
           </Button>
         )}
       </div>
@@ -102,169 +130,99 @@ export default function Integrations() {
           <p className="text-muted-foreground mt-1">Configure APIs e serviços externos</p>
         </div>
 
-        {/* Meta API */}
-        <Card className="bg-card border-border">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Meta API (Instagram & Facebook)</CardTitle>
-                <CardDescription>Configure acesso à Meta para publicar em Instagram e Facebook</CardDescription>
-              </div>
-              <Badge className="bg-blue-600">Integrado</Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <IntegrationField
-              label="App ID"
-              value={formData.meta.metaAppId}
-              onChange={(v: string) => handleInputChange("meta", "metaAppId", v)}
-              placeholder="Seu Meta App ID"
-              isSecret
-              fieldKey="metaAppId"
-            />
-            <IntegrationField
-              label="App Secret"
-              value={formData.meta.metaAppSecret}
-              onChange={(v: string) => handleInputChange("meta", "metaAppSecret", v)}
-              placeholder="Seu Meta App Secret"
-              isSecret
-              fieldKey="metaAppSecret"
-            />
-            <IntegrationField
-              label="Page Access Token"
-              value={formData.meta.metaPageAccessToken}
-              onChange={(v: string) => handleInputChange("meta", "metaPageAccessToken", v)}
-              placeholder="Token de acesso da página"
-              isSecret
-              fieldKey="metaPageAccessToken"
-            />
-            <IntegrationField
-              label="Page ID"
-              value={formData.meta.metaPageId}
-              onChange={(v: string) => handleInputChange("meta", "metaPageId", v)}
-              placeholder="ID da página do Facebook"
-            />
-            <IntegrationField
-              label="Instagram Account ID"
-              value={formData.meta.metaInstagramAccountId}
-              onChange={(v: string) => handleInputChange("meta", "metaInstagramAccountId", v)}
-              placeholder="ID da conta do Instagram"
-            />
-            <Button
-              onClick={() => handleSave("meta")}
-              disabled={updateSettingsMutation.isPending}
-              className="w-full bg-blue-600 hover:bg-blue-700"
-            >
-              {updateSettingsMutation.isPending ? "Salvando..." : "Salvar Configuração Meta"}
-            </Button>
-          </CardContent>
-        </Card>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Integrations List */}
+          <div className="space-y-2">
+            <h2 className="text-lg font-semibold text-foreground mb-4">Serviços Disponíveis</h2>
+            {INTEGRATIONS.map((integration) => (
+              <button
+                key={integration.id}
+                onClick={() => {
+                  setSelectedIntegration(integration.id);
+                  setFormData({});
+                  setShowSecrets({});
+                }}
+                className={`w-full text-left p-4 rounded-lg border-2 transition ${
+                  selectedIntegration === integration.id
+                    ? "border-orange-500 bg-orange-500/10"
+                    : "border-border hover:border-orange-500/50"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-semibold text-foreground">{integration.name}</h3>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {integration.fields.length} campos
+                    </p>
+                  </div>
+                  <ChevronDown
+                    className={`w-4 h-4 transition ${
+                      selectedIntegration === integration.id ? "rotate-180" : ""
+                    }`}
+                  />
+                </div>
+              </button>
+            ))}
+          </div>
 
-        {/* Telegram */}
-        <Card className="bg-card border-border">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Telegram</CardTitle>
-                <CardDescription>Configure bot do Telegram para publicar ofertas</CardDescription>
-              </div>
-              <Badge className="bg-blue-400">Ativo</Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <IntegrationField
-              label="Bot Token"
-              value={formData.telegram.telegramBotToken}
-              onChange={(v: string) => handleInputChange("telegram", "telegramBotToken", v)}
-              placeholder="Token do seu bot Telegram"
-              isSecret
-              fieldKey="telegramBotToken"
-            />
-            <IntegrationField
-              label="Chat ID"
-              value={formData.telegram.telegramChatId}
-              onChange={(v: string) => handleInputChange("telegram", "telegramChatId", v)}
-              placeholder="ID do chat/canal Telegram"
-            />
-            <Button
-              onClick={() => handleSave("telegram")}
-              disabled={updateSettingsMutation.isPending}
-              className="w-full bg-blue-500 hover:bg-blue-600"
-            >
-              {updateSettingsMutation.isPending ? "Salvando..." : "Salvar Configuração Telegram"}
-            </Button>
-          </CardContent>
-        </Card>
+          {/* Configuration Panel */}
+          <div className="lg:col-span-2">
+            {selectedIntegration && currentIntegration ? (
+              <Card className="bg-card border-border">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>{currentIntegration.name}</CardTitle>
+                      <CardDescription>{currentIntegration.description}</CardDescription>
+                    </div>
+                    <Badge className={currentIntegration.color}>Configurar</Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {currentIntegration.fields.map((field) => (
+                    <IntegrationField key={field.key} field={field} />
+                  ))}
 
-        {/* Shopee */}
-        <Card className="bg-card border-border">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Shopee</CardTitle>
-                <CardDescription>Configure acesso à API da Shopee para buscar produtos</CardDescription>
-              </div>
-              <Badge className="bg-orange-600">Ativo</Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <IntegrationField
-              label="API Key"
-              value={formData.shopee.shopeeApiKey}
-              onChange={(v: string) => handleInputChange("shopee", "shopeeApiKey", v)}
-              placeholder="Sua API Key da Shopee"
-              isSecret
-              fieldKey="shopeeApiKey"
-            />
-            <IntegrationField
-              label="Partner ID"
-              value={formData.shopee.shopeePartnerId}
-              onChange={(v: string) => handleInputChange("shopee", "shopeePartnerId", v)}
-              placeholder="Seu Partner ID da Shopee"
-            />
-            <Button
-              onClick={() => handleSave("shopee")}
-              disabled={updateSettingsMutation.isPending}
-              className="w-full bg-orange-600 hover:bg-orange-700"
-            >
-              {updateSettingsMutation.isPending ? "Salvando..." : "Salvar Configuração Shopee"}
-            </Button>
-          </CardContent>
-        </Card>
+                  {selectedIntegration === "gtm" && (
+                    <div className="p-3 bg-yellow-500/10 rounded text-sm text-yellow-600 border border-yellow-500/20">
+                      ℹ️ O GTM será configurado mas não ativado por enquanto. Você poderá ativar quando estiver pronto.
+                    </div>
+                  )}
 
-        {/* GTM */}
-        <Card className="bg-card border-border">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Google Tag Manager</CardTitle>
-                <CardDescription>Configure GTM para rastreamento de eventos (opcional - não ativo ainda)</CardDescription>
-              </div>
-              <Badge variant="outline" className="text-yellow-600 border-yellow-600">
-                Opcional
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <IntegrationField
-              label="GTM ID"
-              value={formData.gtm.gtmId}
-              onChange={(v: string) => handleInputChange("gtm", "gtmId", v)}
-              placeholder="GTM-XXXXXXX"
-            />
-            <p className="text-sm text-muted-foreground">
-              O GTM será configurado mas não ativado por enquanto. Você poderá ativar quando estiver pronto.
-            </p>
-            <Button
-              onClick={() => handleSave("gtm")}
-              disabled={updateSettingsMutation.isPending}
-              variant="outline"
-              className="w-full"
-            >
-              {updateSettingsMutation.isPending ? "Salvando..." : "Salvar Configuração GTM"}
-            </Button>
-          </CardContent>
-        </Card>
+                  <div className="flex gap-2 pt-4">
+                    <Button
+                      onClick={handleSave}
+                      disabled={updateSettingsMutation.isPending}
+                      className={`flex-1 ${currentIntegration.color}`}
+                    >
+                      {updateSettingsMutation.isPending ? "Salvando..." : "Salvar Configuração"}
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        setSelectedIntegration(null);
+                        setFormData({});
+                      }}
+                      variant="outline"
+                      className="flex-1"
+                    >
+                      Cancelar
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="bg-card border-border">
+                <CardContent className="pt-6">
+                  <div className="text-center py-12">
+                    <p className="text-muted-foreground">
+                      Selecione um serviço à esquerda para configurar
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </div>
 
         {/* Removed Integrations */}
         <Card className="bg-card border-border border-red-500/30">
@@ -274,6 +232,20 @@ export default function Integrations() {
           <CardContent>
             <div className="space-y-2 text-sm text-muted-foreground">
               <p>✓ Buffer foi removido. Use Meta API diretamente para Instagram e Facebook.</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Security Note */}
+        <Card className="bg-card border-border border-green-500/30">
+          <CardHeader>
+            <CardTitle className="text-green-600">🔒 Segurança</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 text-sm text-muted-foreground">
+              <p>✓ Dados sensíveis (tokens, secrets) são criptografados no servidor</p>
+              <p>✓ Nunca são retornados para o frontend após salvar</p>
+              <p>✓ Use o ícone de olho para visualizar/ocultar durante configuração</p>
             </div>
           </CardContent>
         </Card>
