@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -72,6 +72,30 @@ export default function Integrations() {
     setShowSecrets({});
   };
 
+  // Carregar dados salvos quando a query retorna
+  useEffect(() => {
+    if (getSettingsQuery.data) {
+      const data = getSettingsQuery.data;
+      const newFormData: Record<string, any> = {};
+      
+      // Extrair apenas os campos de configuração (não id, integrationName, etc)
+      const configKeys = [
+        'metaAppId', 'metaAppSecret', 'metaPageAccessToken', 'metaPageId', 'metaInstagramAccountId',
+        'telegramBotToken', 'telegramChatId',
+        'shopeeApiKey', 'shopeePartnerId',
+        'gtmId'
+      ];
+      
+      configKeys.forEach(key => {
+        if (data[key as keyof typeof data]) {
+          newFormData[key] = data[key as keyof typeof data];
+        }
+      });
+      
+      setFormData(newFormData);
+    }
+  }, [getSettingsQuery.data]);
+
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({
       ...prev,
@@ -96,7 +120,10 @@ export default function Integrations() {
         settings: formData,
       });
       toast.success(`${selectedIntegration.toUpperCase()} configurado com sucesso!`);
-      getSettingsQuery.refetch();
+      // Aguardar um pouco antes de refetch para garantir que os dados foram salvos
+      setTimeout(() => {
+        getSettingsQuery.refetch();
+      }, 500);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Erro ao salvar");
     } finally {
