@@ -101,15 +101,21 @@ export const appRouter = router({
       const { contentApprovals } = await import('../drizzle/schema');
       return await db.select().from(contentApprovals).where(eq(contentApprovals.status, 'pending'));
     }),
-    approveContent: protectedProcedure
-      .input(z.object({ approvalId: z.number() }))
+    approveContentChannel: protectedProcedure
+      .input(z.object({ approvalId: z.number(), channel: z.enum(['telegram', 'instagram']) }))
       .mutation(async ({ input, ctx }) => {
         const db = await import('./db').then(m => m.getDb());
         if (!db) throw new Error('Database not available');
         const { contentApprovals } = await import('../drizzle/schema');
+        
+        const updateData = input.channel === 'telegram' 
+          ? { telegramApproved: true }
+          : { instagramApproved: true };
+        
         await db.update(contentApprovals)
-          .set({ status: 'approved', approvedAt: new Date(), approvedBy: ctx.user?.id })
+          .set(updateData)
           .where(eq(contentApprovals.id, input.approvalId));
+        
         return { success: true };
       }),
     rejectContent: protectedProcedure

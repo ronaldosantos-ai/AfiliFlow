@@ -139,13 +139,18 @@ export const contentApprovals = mysqlTable("contentApprovals", {
   postId: int("postId").notNull(),
   productName: text("productName").notNull(),
   productImage: varchar("productImage", { length: 512 }),
+  description: text("description"),
   affiliateUrl: varchar("affiliateUrl", { length: 512 }).notNull(),
   proposedChannels: json("proposedChannels").$type<string[]>().default([]).notNull(),
-  status: mysqlEnum("status", ["pending", "approved", "rejected"]).default("pending").notNull(),
+  telegramApproved: boolean("telegramApproved").default(false).notNull(),
+  instagramApproved: boolean("instagramApproved").default(false).notNull(),
+  status: mysqlEnum("status", ["pending", "approved", "rejected", "partially_approved"]).default("pending").notNull(),
   rejectionReason: text("rejectionReason"),
+  editHistory: json("editHistory").$type<Array<{version: number, description: string, editedAt: string, editedBy: number}>>().default([]).notNull(),
+  currentVersion: int("currentVersion").default(1).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   approvedAt: timestamp("approvedAt"),
-  approvedBy: int("approvedBy"), // User ID who approved/rejected
+  approvedBy: int("approvedBy"),
 });
 
 export type ContentApproval = typeof contentApprovals.$inferSelect;
@@ -179,3 +184,32 @@ export const integrationSettings = mysqlTable("integrationSettings", {
 
 export type IntegrationSettings = typeof integrationSettings.$inferSelect;
 export type InsertIntegrationSettings = typeof integrationSettings.$inferInsert;
+
+/**
+ * Audit log table: tracks all user actions for compliance and debugging
+ */
+export const auditLogs = mysqlTable("auditLogs", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  action: mysqlEnum("action", [
+    "content_approved_telegram",
+    "content_approved_instagram",
+    "content_rejected",
+    "content_edited",
+    "content_published",
+    "user_promoted_admin",
+    "user_approved",
+    "user_rejected",
+    "config_updated",
+    "integration_updated",
+  ]).notNull(),
+  targetType: mysqlEnum("targetType", ["content", "user", "config", "integration"]).notNull(),
+  targetId: int("targetId"),
+  description: text("description"),
+  details: json("details").$type<Record<string, any>>().default({}).notNull(),
+  ipAddress: varchar("ipAddress", { length: 45 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type InsertAuditLog = typeof auditLogs.$inferInsert;
