@@ -1,31 +1,38 @@
-import DashboardLayout from "@/components/DashboardLayout";
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useState } from "react";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { trpc } from "@/lib/trpc";
+import DashboardLayout from "@/components/DashboardLayout";
+import { Clock, Plus, Trash2, Save, Loader2 } from "lucide-react";
 
 export default function Config() {
   const [config, setConfig] = useState({
     scheduleTimes: ["09:00", "15:00", "21:00"],
+    minPrice: 10,
     maxPrice: 1000,
     minRating: 3.5,
-    keywords: {
-      HomeAndKitchen: "casa cozinha utilidades",
-      BeautyAndPersonalCare: "maquiagem cuidados pele",
-      SportsAndOutdoors: "esportes fitness academia",
-      Electronics: "eletronicos celular acessorios",
-    },
+    minReviews: 50,
+    minSalesRanking: 10000,
+    keywords: "casa cozinha utilidades, maquiagem cuidados pele, esportes fitness academia, eletronicos celular acessorios",
+    excludeKeywords: "fake, cópia, réplica, importado",
   });
 
   const [newTime, setNewTime] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+
+  const saveConfigMutation = trpc.config.saveSearchConfig.useMutation();
 
   const handleAddTime = () => {
     if (newTime && !config.scheduleTimes.includes(newTime)) {
+      const updated = [...config.scheduleTimes, newTime].sort();
       setConfig({
         ...config,
-        scheduleTimes: [...config.scheduleTimes, newTime].sort(),
+        scheduleTimes: updated,
       });
       setNewTime("");
       toast.success("Horário adicionado com sucesso");
@@ -40,36 +47,44 @@ export default function Config() {
     toast.success("Horário removido com sucesso");
   };
 
-  const handleKeywordChange = (category: string, value: string) => {
-    setConfig({
-      ...config,
-      keywords: {
-        ...config.keywords,
-        [category]: value,
-      },
-    });
-  };
-
-  const handleSave = () => {
-    toast.success("Configurações salvas com sucesso!");
+  const handleSaveConfig = async () => {
+    setIsSaving(true);
+    try {
+      await saveConfigMutation.mutateAsync({
+        scheduleTimes: config.scheduleTimes,
+        minPrice: config.minPrice,
+        maxPrice: config.maxPrice,
+        minRating: config.minRating,
+        minReviews: config.minReviews,
+        minSalesRanking: config.minSalesRanking,
+        keywords: config.keywords,
+        excludeKeywords: config.excludeKeywords,
+      });
+      toast.success("Configurações salvas com sucesso!");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao salvar configurações");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 max-w-4xl">
+      <div className="space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Configurações do Pipeline</h1>
-          <p className="text-muted-foreground mt-1">Ajuste os parâmetros de execução e busca</p>
+          <h1 className="text-3xl font-bold text-foreground">Configurações de Busca</h1>
+          <p className="text-muted-foreground mt-1">Defina os critérios para busca e filtragem de produtos</p>
         </div>
 
         {/* Schedule Times */}
         <Card className="bg-card border-border">
           <CardHeader>
-            <CardTitle>Horários de Agendamento (SCHEDULE_TIMES)</CardTitle>
-            <CardDescription>
-              Defina os horários em que o pipeline será executado automaticamente
-            </CardDescription>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="w-5 h-5" />
+              Horários de Busca
+            </CardTitle>
+            <CardDescription>Defina os horários em que o sistema buscará produtos</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex gap-2">
@@ -78,73 +93,95 @@ export default function Config() {
                 value={newTime}
                 onChange={(e) => setNewTime(e.target.value)}
                 placeholder="HH:MM"
-                className="flex-1"
+                className="max-w-xs"
               />
-              <Button onClick={handleAddTime} className="bg-accent hover:bg-accent/90">
+              <Button onClick={handleAddTime} className="bg-blue-600 hover:bg-blue-700">
+                <Plus className="w-4 h-4 mr-1" />
                 Adicionar
               </Button>
             </div>
 
             <div className="flex flex-wrap gap-2">
               {config.scheduleTimes.map((time) => (
-                <div
-                  key={time}
-                  className="flex items-center gap-2 bg-accent/10 px-3 py-2 rounded-lg border border-accent/20"
-                >
-                  <span className="font-medium text-foreground">{time}</span>
+                <Badge key={time} variant="secondary" className="px-3 py-2 text-sm">
+                  {time}
                   <button
                     onClick={() => handleRemoveTime(time)}
-                    className="text-muted-foreground hover:text-destructive transition-colors"
+                    className="ml-2 hover:text-red-500"
                   >
-                    ✕
+                    <Trash2 className="w-3 h-3" />
                   </button>
-                </div>
+                </Badge>
               ))}
             </div>
           </CardContent>
         </Card>
 
-        {/* Price and Rating Filters */}
+        {/* Price Range */}
         <Card className="bg-card border-border">
           <CardHeader>
-            <CardTitle>Filtros de Produto</CardTitle>
-            <CardDescription>
-              Configure os limites de preço e avaliação mínima
-            </CardDescription>
+            <CardTitle>Faixa de Preço</CardTitle>
+            <CardDescription>Defina o intervalo de preço dos produtos a buscar</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="maxPrice" className="text-foreground">
-                  Preço Máximo (MAX_PRICE)
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="minPrice" className="text-sm font-medium">
+                  Preço Mínimo (R$)
                 </Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    id="maxPrice"
-                    type="number"
-                    value={config.maxPrice}
-                    onChange={(e) =>
-                      setConfig({
-                        ...config,
-                        maxPrice: parseFloat(e.target.value),
-                      })
-                    }
-                    className="flex-1"
-                  />
-                  <span className="text-muted-foreground">R$</span>
-                </div>
+                <Input
+                  id="minPrice"
+                  type="number"
+                  value={config.minPrice}
+                  onChange={(e) =>
+                    setConfig({
+                      ...config,
+                      minPrice: parseFloat(e.target.value),
+                    })
+                  }
+                  min="0"
+                  step="10"
+                  className="mt-1"
+                />
               </div>
+              <div>
+                <Label htmlFor="maxPrice" className="text-sm font-medium">
+                  Preço Máximo (R$)
+                </Label>
+                <Input
+                  id="maxPrice"
+                  type="number"
+                  value={config.maxPrice}
+                  onChange={(e) =>
+                    setConfig({
+                      ...config,
+                      maxPrice: parseFloat(e.target.value),
+                    })
+                  }
+                  min="0"
+                  step="10"
+                  className="mt-1"
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-              <div className="space-y-2">
-                <Label htmlFor="minRating" className="text-foreground">
-                  Avaliação Mínima (MIN_RATING)
+        {/* Rating and Reviews */}
+        <Card className="bg-card border-border">
+          <CardHeader>
+            <CardTitle>Qualificação de Produtos</CardTitle>
+            <CardDescription>Defina os critérios mínimos de qualidade</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <Label htmlFor="minRating" className="text-sm font-medium">
+                  Rating Mínimo (★)
                 </Label>
                 <Input
                   id="minRating"
                   type="number"
-                  step="0.1"
-                  min="0"
-                  max="5"
                   value={config.minRating}
                   onChange={(e) =>
                     setConfig({
@@ -152,50 +189,164 @@ export default function Config() {
                       minRating: parseFloat(e.target.value),
                     })
                   }
+                  min="0"
+                  max="5"
+                  step="0.1"
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="minReviews" className="text-sm font-medium">
+                  Avaliações Mínimas
+                </Label>
+                <Input
+                  id="minReviews"
+                  type="number"
+                  value={config.minReviews}
+                  onChange={(e) =>
+                    setConfig({
+                      ...config,
+                      minReviews: parseInt(e.target.value),
+                    })
+                  }
+                  min="0"
+                  step="10"
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="minSalesRanking" className="text-sm font-medium">
+                  Ranking de Vendas Máx.
+                </Label>
+                <Input
+                  id="minSalesRanking"
+                  type="number"
+                  value={config.minSalesRanking}
+                  onChange={(e) =>
+                    setConfig({
+                      ...config,
+                      minSalesRanking: parseInt(e.target.value),
+                    })
+                  }
+                  min="0"
+                  step="100"
+                  className="mt-1"
                 />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Keywords by Category */}
+        {/* Keywords */}
         <Card className="bg-card border-border">
           <CardHeader>
-            <CardTitle>Palavras-chave por Categoria</CardTitle>
+            <CardTitle>Palavras-chave para Busca</CardTitle>
             <CardDescription>
-              Customize as palavras-chave de busca para cada categoria
+              Digite as palavras-chave separadas por vírgula. O sistema buscará produtos com essas palavras.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {Object.entries(config.keywords).map(([category, keywords]) => (
-              <div key={category} className="space-y-2">
-                <Label htmlFor={category} className="text-foreground font-medium">
-                  {category === "HomeAndKitchen" && "Casa e Cozinha"}
-                  {category === "BeautyAndPersonalCare" && "Beleza e Cuidados Pessoais"}
-                  {category === "SportsAndOutdoors" && "Esportes e Outdoor"}
-                  {category === "Electronics" && "Eletrônicos"}
-                </Label>
-                <Input
-                  id={category}
-                  value={keywords}
-                  onChange={(e) => handleKeywordChange(category, e.target.value)}
-                  placeholder="Digite as palavras-chave separadas por espaço"
-                  className="w-full"
-                />
-              </div>
-            ))}
+            <div>
+              <Label htmlFor="keywords" className="text-sm font-medium">
+                Palavras-chave (separadas por vírgula)
+              </Label>
+              <Textarea
+                id="keywords"
+                value={config.keywords}
+                onChange={(e) =>
+                  setConfig({
+                    ...config,
+                    keywords: e.target.value,
+                  })
+                }
+                placeholder="Ex: casa cozinha, maquiagem, esportes, eletrônicos"
+                rows={4}
+                className="mt-1"
+              />
+              <p className="text-xs text-muted-foreground mt-2">
+                Exemplo: "casa cozinha utilidades, maquiagem cuidados pele"
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Exclude Keywords */}
+        <Card className="bg-card border-border">
+          <CardHeader>
+            <CardTitle>Palavras-chave para Excluir</CardTitle>
+            <CardDescription>
+              Digite as palavras-chave que você quer EXCLUIR dos resultados.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label htmlFor="excludeKeywords" className="text-sm font-medium">
+                Palavras-chave a Excluir (separadas por vírgula)
+              </Label>
+              <Textarea
+                id="excludeKeywords"
+                value={config.excludeKeywords}
+                onChange={(e) =>
+                  setConfig({
+                    ...config,
+                    excludeKeywords: e.target.value,
+                  })
+                }
+                placeholder="Ex: fake, cópia, réplica, importado"
+                rows={3}
+                className="mt-1"
+              />
+              <p className="text-xs text-muted-foreground mt-2">
+                Exemplo: "fake, cópia, réplica, importado"
+              </p>
+            </div>
           </CardContent>
         </Card>
 
         {/* Save Button */}
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" className="border-border">
-            Cancelar
-          </Button>
-          <Button onClick={handleSave} className="bg-accent hover:bg-accent/90">
-            Salvar Configurações
+        <div className="flex gap-2">
+          <Button
+            onClick={handleSaveConfig}
+            disabled={isSaving}
+            className="bg-green-600 hover:bg-green-700 flex-1"
+          >
+            {isSaving ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Salvando...
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4 mr-2" />
+                Salvar Configurações
+              </>
+            )}
           </Button>
         </div>
+
+        {/* Info */}
+        <Card className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+          <CardHeader>
+            <CardTitle className="text-sm">ℹ️ Informações</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground space-y-2">
+            <p>
+              • <strong>Horários de Busca:</strong> O sistema executará buscas nos horários configurados
+            </p>
+            <p>
+              • <strong>Faixa de Preço:</strong> Produtos fora dessa faixa serão ignorados
+            </p>
+            <p>
+              • <strong>Rating Mínimo:</strong> Apenas produtos com rating igual ou superior serão considerados
+            </p>
+            <p>
+              • <strong>Avaliações Mínimas:</strong> Produtos com menos avaliações serão ignorados
+            </p>
+            <p>
+              • <strong>Ranking de Vendas:</strong> Quanto menor o número, mais vendido é o produto
+            </p>
+          </CardContent>
+        </Card>
       </div>
     </DashboardLayout>
   );
