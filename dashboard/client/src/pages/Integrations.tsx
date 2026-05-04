@@ -46,9 +46,9 @@ const INTEGRATIONS = [
   {
     id: "gtm",
     name: "Google Tag Manager",
-    description: "Configure GTM para rastreamento de eventos (opcional - não ativo ainda)",
+    description: "Configure GTM para rastreamento de eventos e conversões",
     icon: "📊",
-    fields: [{ key: "gtmId", label: "GTM ID", isSecret: false, required: false }],
+    fields: [{ key: "gtmId", label: "GTM ID", isSecret: false, required: true }],
   },
 ];
 
