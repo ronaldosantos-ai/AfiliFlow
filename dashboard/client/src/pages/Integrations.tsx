@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
-import { Eye, EyeOff, Save, Loader2, AlertCircle, CheckCircle } from "lucide-react";
+import { Eye, EyeOff, Save, Loader2, AlertCircle } from "lucide-react";
 
 const INTEGRATIONS = [
   {
@@ -64,10 +64,8 @@ export default function Integrations() {
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [isSaving, setIsSaving] = useState(false);
-  const [isMigrating, setIsMigrating] = useState(false);
 
   const updateSettingsMutation = trpc.admin.updateIntegrationSettings.useMutation();
-  const runMigrationMutation = trpc.dashboard.runMigration.useMutation();
   const getSettingsQuery = trpc.admin.getIntegrationSettings.useQuery(
     { integrationName: selectedIntegration || "" },
     { enabled: !!selectedIntegration }
@@ -140,51 +138,15 @@ export default function Integrations() {
     }
   };
 
-  const handleRunMigration = async () => {
-    setIsMigrating(true);
-    try {
-      const result = await runMigrationMutation.mutateAsync();
-      if (result.success) {
-        toast.success("Tabela de integrações criada com sucesso!");
-      } else {
-        toast.error(`Erro na migração: ${result.message}`);
-      }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Erro ao executar migração");
-    } finally {
-      setIsMigrating(false);
-    }
-  };
-
   const currentIntegration = INTEGRATIONS.find((i) => i.id === selectedIntegration);
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">Integrações</h1>
-            <p className="text-muted-foreground mt-1">Configure as integrações com serviços externos</p>
-          </div>
-          <Button
-            onClick={handleRunMigration}
-            disabled={isMigrating}
-            variant="outline"
-            className="bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800 hover:bg-purple-100"
-          >
-            {isMigrating ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Migrando...
-              </>
-            ) : (
-              <>
-                <CheckCircle className="w-4 h-4 mr-2" />
-                Inicializar Banco
-              </>
-            )}
-          </Button>
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Integrações</h1>
+          <p className="text-muted-foreground mt-1">Configure as integrações com serviços externos</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
