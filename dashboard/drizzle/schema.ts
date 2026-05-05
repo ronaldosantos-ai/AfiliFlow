@@ -215,3 +215,28 @@ export const auditLogs = mysqlTable("auditLogs", {
 
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type InsertAuditLog = typeof auditLogs.$inferInsert;
+
+/**
+ * Manual posts table: stores manually created posts for publishing
+ */
+export const manualPosts = mysqlTable("manualPosts", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  productUrl: varchar("productUrl", { length: 512 }).notNull(),
+  productName: text("productName").notNull(),
+  productPrice: decimal("productPrice", { precision: 10, scale: 2 }),
+  productImage: varchar("productImage", { length: 512 }),
+  productDescription: text("productDescription"),
+  affiliateUrl: varchar("affiliateUrl", { length: 512 }),
+  aidaDescription: text("aidaDescription"),
+  generatedImage: varchar("generatedImage", { length: 512 }),
+  editedDescription: text("editedDescription"),
+  publishChannels: json("publishChannels").$type<string[]>().default([]).notNull(),
+  status: mysqlEnum("status", ["draft", "pending", "approved", "rejected", "published"]).default("draft").notNull(),
+  rejectionReason: text("rejectionReason"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ManualPost = typeof manualPosts.$inferSelect;
+export type InsertManualPost = typeof manualPosts.$inferInsert;

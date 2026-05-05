@@ -11,6 +11,11 @@ import {
   getIntegrationStatus,
   getCacheItems,
   getMetricsSnapshot,
+  createManualPost,
+  getManualPost,
+  getManualPostsByUser,
+  updateManualPost,
+  deleteManualPost,
 } from "./db";
 import { registerUser, loginUser, getPendingUsers, authorizeUser, rejectUser } from "./auth";
 import type { User } from "../drizzle/schema";
@@ -241,6 +246,61 @@ export const appRouter = router({
     getMetricsSnapshot: publicProcedure.query(async () => {
       return await getMetricsSnapshot();
     }),
+
+    createManualPost: protectedProcedure
+      .input(z.object({
+        productUrl: z.string().url(),
+        productName: z.string(),
+        productPrice: z.number().optional(),
+        productImage: z.string().optional(),
+        productDescription: z.string().optional(),
+        affiliateUrl: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (!ctx.user) throw new Error('Not authenticated');
+        return await createManualPost({
+          userId: ctx.user.id,
+          productUrl: input.productUrl,
+          productName: input.productName,
+          productPrice: input.productPrice ? String(input.productPrice) as any : undefined,
+          productImage: input.productImage,
+          productDescription: input.productDescription,
+          affiliateUrl: input.affiliateUrl,
+          status: 'draft',
+        });
+      }),
+
+    getManualPost: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return await getManualPost(input.id);
+      }),
+
+    getMyManualPosts: protectedProcedure
+      .query(async ({ ctx }) => {
+        if (!ctx.user) throw new Error('Not authenticated');
+        return await getManualPostsByUser(ctx.user.id);
+      }),
+
+    updateManualPost: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        aidaDescription: z.string().optional(),
+        generatedImage: z.string().optional(),
+        editedDescription: z.string().optional(),
+        publishChannels: z.array(z.string()).optional(),
+        status: z.enum(['draft', 'pending', 'approved', 'rejected', 'published']).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...updates } = input;
+        return await updateManualPost(id, updates);
+      }),
+
+    deleteManualPost: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        return await deleteManualPost(input.id);
+      }),
   }),
 });
 

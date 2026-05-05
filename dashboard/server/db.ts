@@ -1,6 +1,6 @@
 import { eq, desc, and, gte, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, posts, pipelineConfig, executionLogs, integrationStatus, cacheItems, metricsSnapshots, contentApprovals, integrationSettings } from "../drizzle/schema";
+import { InsertUser, users, posts, pipelineConfig, executionLogs, integrationStatus, cacheItems, metricsSnapshots, contentApprovals, integrationSettings, manualPosts, InsertManualPost, ManualPost } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -260,4 +260,48 @@ export async function createMetricsSnapshot(snapshot: typeof metricsSnapshots.$i
 
   await db.insert(metricsSnapshots).values(snapshot);
   return snapshot;
+}
+
+// Manual Posts helpers
+export async function createManualPost(post: InsertManualPost) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const result = await db.insert(manualPosts).values(post);
+  return result;
+}
+
+export async function getManualPost(id: number): Promise<ManualPost | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  const result = await db.select().from(manualPosts).where(eq(manualPosts.id, id)).limit(1);
+  return result[0] || null;
+}
+
+export async function getManualPostsByUser(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db
+    .select()
+    .from(manualPosts)
+    .where(eq(manualPosts.userId, userId))
+    .orderBy(desc(manualPosts.createdAt));
+}
+
+export async function updateManualPost(id: number, updates: Partial<ManualPost>) {
+  const db = await getDb();
+  if (!db) return null;
+
+  await db.update(manualPosts).set(updates).where(eq(manualPosts.id, id));
+  return await getManualPost(id);
+}
+
+export async function deleteManualPost(id: number) {
+  const db = await getDb();
+  if (!db) return false;
+
+  await db.delete(manualPosts).where(eq(manualPosts.id, id));
+  return true;
 }
