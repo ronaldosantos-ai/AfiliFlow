@@ -66,14 +66,18 @@ export default function PublishManual() {
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Erro ao buscar produto";
       toast.error(errorMsg);
-    } finally {
       setIsSearching(false);
+      processUrlMutation.reset();
+      createPostMutation.reset();
+      updatePostMutation.reset();
     }
   };
 
   const handleCancelSearch = () => {
     setIsSearching(false);
     processUrlMutation.reset();
+    createPostMutation.reset();
+    updatePostMutation.reset();
     toast.info("Busca cancelada");
   };
 

@@ -3,18 +3,25 @@ main.py
 Ponto de entrada do Shopee Affiliate Bot.
 Orquestra o fluxo completo e gerencia o agendamento via APScheduler.
 
-Fluxo por execução:
-  1. Busca produto na Shopee Affiliate API
-  2. Envia URL de afiliado para o bot do Telegram
-  3. Gera imagem lifestyle com CTAs (Gemini/Imagen 3)
-  4. Publica imagem + legenda no Instagram e Facebook via Buffer
-  5. Marca produto no cache
+Fluxo por execução (NOVO - Fase 1):
+  0. Verifica se pipeline está pausado
+  1. Limpa cache expirado
+  2. Busca produto na Shopee Affiliate API
+  3. Adiciona UTM (rastreamento)
+  4. Gera imagem lifestyle com Gemini
+  5. Upload da imagem para URL pública
+  6. Gera conteúdo (título, descrição, hashtags) com Gemini
+  7. Salva em contentApprovals com status 'pending'
+  8. Marca produto no cache
+
+⚠️ O pipeline NÃO publica em nenhum canal. Todo conteúdo vai para Aprovações.
 """
 
 import logging
 import os
 import sys
 import time
+import json
 from datetime import datetime
 
 from apscheduler.schedulers.blocking import BlockingScheduler
@@ -23,9 +30,7 @@ from apscheduler.triggers.cron import CronTrigger
 import config
 import cache
 import shopee
-import telegram_sender
 import image_generator
-import meta_publisher
 import python_db_integration
 import utm_pixel_tracking
 import init_db_tables
@@ -43,7 +48,7 @@ logger = logging.getLogger(__name__)
 
 
 # ─────────────────────────────────────────────────────────
-#  FLUXO PRINCIPAL
+#  FLUXO PRINCIPAL (NOVO)
 # ─────────────────────────────────────────────────────────
 
 def run_pipeline():
@@ -51,6 +56,12 @@ def run_pipeline():
     logger.info("=" * 60)
     logger.info("🚀 Iniciando pipeline...")
     logger.info("=" * 60)
+
+    # 0. Verifica se pipeline está pausado
+    pipeline_paused = python_db_integration.is_pipeline_paused()
+    if pipeline_paused:
+        logger.info("⏸️  Pipeline pausado no dashboard. Encerrando execução.")
+        return
 
     # 1. Limpa cache expirado (manutenção automática)
     cache.clean_expired()
@@ -62,7 +73,6 @@ def run_pipeline():
         return
 
     # 2.1 Adiciona rastreamento (UTMs)
-    # Criamos o tracker com as configurações do ambiente
     tracker = utm_pixel_tracking.initialize_tracking_manager({
         'utm_source': 'afiliflow',
         'utm_medium': 'social',
@@ -70,8 +80,6 @@ def run_pipeline():
         'gtm_id': os.getenv('GTM_ID')
     })
     
-    # Geramos a URL com UTMs específicas para o fluxo geral
-    # Note: No futuro, podemos gerar URLs diferentes para Telegram e Instagram se desejar
     tracking_data = tracker.create_tracking_url(
         affiliate_url=product.affiliate_url,
         campaign_name=f"shopee_br_{datetime.now().strftime('%Y%m')}",
@@ -87,117 +95,124 @@ def run_pipeline():
     logger.info(f"📦 Produto: {product.title}")
     logger.info(f"   ID: {product.asin} | R${product.price:.2f} | ⭐{product.rating} ({product.reviews} reviews)")
     logger.info(f"   Categoria: {product.category_label}")
-    logger.info(f"   Link: {product.affiliate_url}")
 
-    success_count = 0
+    try:
+        # 3. Gera imagem lifestyle
+        logger.info("🎨 Gerando imagem lifestyle...")
+        image_path = image_generator.generate_product_image(
+            product_title=product.title,
+            category=product.category,
+            category_label=product.category_label,
+            price=product.price,
+            rating=product.rating,
+            reviews=product.reviews,
+            product_image_url=product.image_url,
+            asin=product.asin,
+        )
 
-    # 3. Envia para o Telegram (publica no blog)
-    logger.info("📨 Enviando para Telegram...")
-    tg_ok = telegram_sender.send_affiliate_link(
-        affiliate_url=product.affiliate_url,
-        product_title=product.title,
-    )
-    if tg_ok:
-        success_count += 1
-        logger.info("✅ Telegram: OK")
-    else:
-        logger.error("❌ Telegram: FALHOU")
+        if not image_path:
+            logger.error("❌ Imagem: FALHOU — conteúdo não será gerado.")
+            return
 
-    # 4. Gera imagem lifestyle
-    logger.info("🎨 Gerando imagem lifestyle...")
-    image_path = image_generator.generate_product_image(
-        product_title=product.title,
-        category=product.category,
-        category_label=product.category_label,
-        price=product.price,
-        rating=product.rating,
-        reviews=product.reviews,
-        product_image_url=product.image_url,
-        asin=product.asin, # Usando asin como identificador genérico
-    )
-
-    if not image_path:
-        logger.error("❌ Imagem: FALHOU — post social não será feito.")
-    else:
         logger.info(f"✅ Imagem gerada: {image_path}")
 
-        # 5. Monta caption
-        caption = image_generator.build_caption(
+        # 4. Upload da imagem para URL pública
+        logger.info("📤 Fazendo upload da imagem...")
+        public_image_url = image_generator.get_public_image_url(image_path)
+        if not public_image_url:
+            logger.error("❌ Upload: FALHOU — conteúdo não será gerado.")
+            return
+
+        logger.info(f"✅ Imagem disponível em: {public_image_url}")
+
+        # 5. Gera conteúdo com Gemini
+        logger.info("✍️  Gerando conteúdo com Gemini...")
+        content = image_generator.generate_content_with_gemini(
             product_title=product.title,
             category_label=product.category_label,
             price=product.price,
             rating=product.rating,
             reviews=product.reviews,
-            affiliate_url=product.affiliate_url,
+            product_description=product.description or "",
         )
 
-    # 6. Publica no Instagram via Meta API
-    logger.info("📲 Publicando via Meta API (Instagram)...")
-    meta_ok = meta_publisher.publish_to_instagram(
-        image_url=image_generator.get_public_image_url(image_path), # Assumindo que a imagem precisa de URL pública
-        caption=caption,
-    )
-    if meta_ok:
-        success_count += 1
-        logger.info("✅ Meta API (Instagram): OK")
-    else:
-        logger.error("❌ Meta API (Instagram): FALHOU")
+        if not content:
+            logger.error("❌ Conteúdo: FALHOU")
+            return
 
-        # 7. Remove imagem temporária
-        image_generator.cleanup_image(image_path)
+        logger.info("✅ Conteúdo gerado com sucesso")
 
-    # 8. Marca no cache apenas se pelo menos uma publicação funcionou
-    if success_count > 0:
-        # Tenta salvar no banco de dados primeiro
-        db_saved = python_db_integration.add_cache_item(
+        # 6. Salva em contentApprovals
+        logger.info("💾 Salvando em contentApprovals...")
+        approval_id = python_db_integration.create_content_approval(
             product_id=product.asin,
             product_name=product.title,
-            image_url=product.image_url,
+            product_price=product.price,
+            product_image=product.image_url,
+            product_description=product.description or "",
             affiliate_url=product.affiliate_url,
-            category=product.category
+            title=content.get('title', product.title),
+            description=content.get('description', ''),
+            hashtags=content.get('hashtags', ''),
+            image_url=public_image_url,
+            source='automatic'
         )
-        
-        # Fallback para cache local se banco de dados não estiver disponível
-        if not db_saved:
-            cache.mark_published(product.asin)
-            logger.info(f"📝 Cache local atualizado para ID {product.asin}")
-        else:
-            logger.info(f"📝 Cache do banco de dados atualizado para ID {product.asin}")
-    
-    # Registra a execução no banco de dados
-    execution_log = {
-        'executionId': f"{product.asin}_{datetime.now().timestamp()}",
-        'status': 'success' if success_count == 2 else ('partial' if success_count > 0 else 'error'),
-        'productFound': product.asin,
-        'productName': product.title,
-        'channelsPublished': ['telegram'] if success_count > 0 else [],
-        'executionTime': 0
-    }
-    if success_count > 0:
-        execution_log['channelsPublished'].append('instagram')
-    
-    python_db_integration.create_execution_log(execution_log)
-    
-    stats = cache.get_stats()
-    logger.info(f"📊 Total de produtos publicados no cache: {stats['total_published']}")
-    logger.info("=" * 60)
-    logger.info(f"✅ Pipeline concluído. Sucessos: {success_count}/2")
-    logger.info("=" * 60)
+
+        if not approval_id:
+            logger.error("❌ Erro ao salvar em contentApprovals")
+            return
+
+        logger.info(f"✅ Conteúdo salvo em contentApprovals (ID: {approval_id})")
+
+        # 7. Marca no cache
+        logger.info("📝 Marcando produto no cache...")
+        cache.mark_published(product.asin)
+        logger.info(f"✅ Cache atualizado para ID {product.asin}")
+
+        # 8. Registra a execução
+        execution_log = {
+            'executionId': f"{product.asin}_{datetime.now().timestamp()}",
+            'status': 'success',
+            'productFound': product.asin,
+            'productName': product.title,
+            'contentApprovalId': approval_id,
+            'executionTime': 0
+        }
+        python_db_integration.create_execution_log(execution_log)
+
+        logger.info("=" * 60)
+        logger.info("✅ Pipeline concluído com sucesso!")
+        logger.info("=" * 60)
+
+    except Exception as e:
+        logger.error(f"❌ Erro durante execução: {str(e)}")
+        execution_log = {
+            'executionId': f"{product.asin}_{datetime.now().timestamp()}",
+            'status': 'error',
+            'productFound': product.asin,
+            'productName': product.title,
+            'errorMessage': str(e),
+            'executionTime': 0
+        }
+        python_db_integration.create_execution_log(execution_log)
 
 
 # ─────────────────────────────────────────────────────────
-#  SCHEDULER
+#  SCHEDULER (NOVO - carrega horários do banco)
 # ─────────────────────────────────────────────────────────
 
 def start_scheduler():
-    """Configura e inicia o agendador com os horários do .env."""
+    """Configura e inicia o agendador com os horários do banco de dados."""
     scheduler = BlockingScheduler(timezone="America/Sao_Paulo")
 
-    if not config.SCHEDULE_TIMES:
-        logger.error("❌ Nenhum horário configurado em SCHEDULE_TIMES.")
+    # Carrega horários do banco de dados
+    schedule_times = python_db_integration.get_schedule_times()
+    
+    if not schedule_times:
+        logger.error("❌ Nenhum horário configurado no banco de dados.")
         sys.exit(1)
 
-    for time_str in config.SCHEDULE_TIMES:
+    for time_str in schedule_times:
         try:
             hour, minute = time_str.strip().split(":")
             scheduler.add_job(
@@ -248,20 +263,18 @@ if __name__ == "__main__":
         arg = sys.argv[1].lower()
 
         if arg == "run":
-            # Executa uma vez imediatamente (para teste)
-            logger.info("▶️  Modo: execução única (teste)")
+            logger.info("🔄 Modo: Execução única (sem agendador)")
             run_pipeline()
 
-
-
-        elif arg == "cache":
-            # Mostra stats do cache
-            stats = cache.get_stats()
-            print(f"\n📊 Cache: {stats['total_published']} produtos publicados")
+        elif arg == "scheduler":
+            logger.info("⏰ Modo: Agendador")
+            start_scheduler()
 
         else:
-            print(f"Argumento desconhecido: {arg}")
-            print("Uso: python main.py [run|profiles|cache]")
+            logger.error(f"❌ Argumento desconhecido: {arg}")
+            logger.info("   Use: python main.py [run|scheduler]")
+            sys.exit(1)
     else:
-        # Modo normal: inicia o agendador
+        # Padrão: inicia o scheduler
+        logger.info("⏰ Modo padrão: Agendador")
         start_scheduler()

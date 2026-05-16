@@ -63,7 +63,75 @@ def init_db():
             maxPrice DECIMAL(10, 2),
             minRating DECIMAL(3, 2),
             activeCategories JSON,
+            paused BOOLEAN DEFAULT false,
             updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )
+        """)
+        
+        # Tabela de Aprovações de Conteúdo
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS contentApprovals (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            productId VARCHAR(255),
+            productName TEXT NOT NULL,
+            productPrice DECIMAL(10, 2),
+            productImage TEXT,
+            productDescription TEXT,
+            affiliateUrl TEXT,
+            title TEXT NOT NULL,
+            description TEXT NOT NULL,
+            hashtags TEXT,
+            imageUrl TEXT,
+            prompt TEXT,
+            status ENUM('pending', 'approved', 'discarded') DEFAULT 'pending',
+            source ENUM('automatic', 'manual') DEFAULT 'automatic',
+            approvedAt DATETIME,
+            createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_status (status),
+            INDEX idx_source (source)
+        )
+        """)
+        
+        # Tabela de Postagens Manuais
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS manualPosts (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            productUrl TEXT NOT NULL,
+            productName TEXT NOT NULL,
+            productPrice DECIMAL(10, 2),
+            productImage TEXT,
+            productDescription TEXT,
+            affiliateUrl TEXT,
+            title TEXT NOT NULL,
+            description TEXT NOT NULL,
+            hashtags TEXT,
+            imageUrl TEXT,
+            status ENUM('draft', 'published') DEFAULT 'draft',
+            createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_status (status)
+        )
+        """)
+        
+        # Tabela de Postagens Aprovadas (Histórico)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS posts (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            contentApprovalId INT,
+            productId VARCHAR(255),
+            productName TEXT NOT NULL,
+            price DECIMAL(10, 2),
+            imageUrl TEXT,
+            affiliateUrl TEXT,
+            title TEXT NOT NULL,
+            description TEXT NOT NULL,
+            hashtags TEXT,
+            category VARCHAR(100),
+            source ENUM('automatic', 'manual') DEFAULT 'automatic',
+            approvedAt DATETIME,
+            createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (contentApprovalId) REFERENCES contentApprovals(id)
         )
         """)
         
