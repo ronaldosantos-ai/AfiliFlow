@@ -393,6 +393,78 @@ export const appRouter = router({
         await db.delete(posts).where(eq(posts.id, input.id));
         return { success: true };
       }),
+    
+    // Scheduler Settings
+    getSchedulerSettings: protectedProcedure.query(async () => {
+      const db = await import('./db').then(m => m.getDb());
+      if (!db) throw new Error('Database not available');
+      const { pipelineConfig } = await import('../drizzle/schema');
+      
+      const config = await db.select().from(pipelineConfig).limit(1);
+      return config[0] || { scheduleTimes: '[]', keywords: '[]', activeCategories: '[]', paused: false };
+    }),
+    
+    updateSchedulerSettings: protectedProcedure
+      .input(z.object({
+        scheduleTimes: z.array(z.string()).optional(),
+        keywords: z.array(z.string()).optional(),
+        maxPrice: z.number().optional(),
+        minRating: z.number().optional(),
+        activeCategories: z.array(z.string()).optional(),
+        paused: z.boolean().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const db = await import('./db').then(m => m.getDb());
+        if (!db) throw new Error('Database not available');
+        const { pipelineConfig } = await import('../drizzle/schema');
+        
+        const config = await db.select().from(pipelineConfig).limit(1);
+        
+        if (config.length > 0) {
+          await db.update(pipelineConfig)
+            .set({
+              scheduleTimes: input.scheduleTimes ? JSON.stringify(input.scheduleTimes) : undefined,
+              keywords: input.keywords ? JSON.stringify(input.keywords) : undefined,
+              activeCategories: input.activeCategories ? JSON.stringify(input.activeCategories) : undefined,
+              paused: input.paused,
+            })
+            .where(eq(pipelineConfig.id, config[0].id));
+        } else {
+          await db.insert(pipelineConfig).values({
+            scheduleTimes: JSON.stringify(input.scheduleTimes || []),
+            keywords: JSON.stringify(input.keywords || []),
+            activeCategories: JSON.stringify(input.activeCategories || []),
+            paused: input.paused || false,
+          });
+        }
+        
+        return { success: true };
+      }),
+    
+    togglePipeline: protectedProcedure
+      .input(z.object({ paused: z.boolean() }))
+      .mutation(async ({ input }) => {
+        const db = await import('./db').then(m => m.getDb());
+        if (!db) throw new Error('Database not available');
+        const { pipelineConfig } = await import('../drizzle/schema');
+        
+        const config = await db.select().from(pipelineConfig).limit(1);
+        
+        if (config.length > 0) {
+          await db.update(pipelineConfig)
+            .set({ paused: input.paused })
+            .where(eq(pipelineConfig.id, config[0].id));
+        } else {
+          await db.insert(pipelineConfig).values({
+            paused: input.paused,
+            scheduleTimes: JSON.stringify([]),
+            keywords: JSON.stringify([]),
+            activeCategories: JSON.stringify([]),
+          });
+        }
+        
+        return { success: true };
+      }),
   }),
 });
 
